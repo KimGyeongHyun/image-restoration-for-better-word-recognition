@@ -254,13 +254,19 @@ for i in range(int(H/8)):
         img2[i * 8 : i * 8 + 8, j * 8 : j * 8 + 8] = X_hat[i, j, :, :]
 
 
+# 달라진 화소값 확인
+print(X[0, 0])
+print(X_hat[0, 0])
+
+
 # image show
-cv2.imshow('img2', img)
+cv2.imshow('Original', img)
+cv2.imshow('filtered image', img2.astype(np.uint8))
 cv2.waitKey()
 
 cv2.destroyAllWindows()
 
 """
- Quantization 과정을 통해 고주파 데이터가 어느 정도 제거되므로
- Lossy coding 입니다.
+ Quantization 과정을 통해 고주파 데이터가 어느 정도 제거되었으므로 화소값이 달라진 것을 확인. 
+ 고주파 데이터가 어느 정도 제거되었으므로 Lossy coding.
 """
