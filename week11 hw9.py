@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import math
-import matplotlib.pyplot as plt
 
 
 def zigzag(input):
@@ -116,24 +115,12 @@ CT = np.transpose(C)
 
 H, W = img.shape
 X = np.zeros((int(H/8), int(W/8), 8, 8))    # 이미지를 8*8로 저장할 배열
-
-
-# 이미지를 8*8로 쪼개서 저장
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
-        X[i, j,:, :] = img[i * 8 : i * 8 + 8, j * 8 : j * 8 + 8]
-
-
-# Y 에 DCT 저장
 Y1 = np.zeros((int(H/8), int(W/8), 8, 8))
-Y = np.zeros((int(H/8), int(W/8), 8, 8))
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
-        Y1[i, j, :, :] = np.matmul(C, X[i, j])
-        Y[i, j, :, :] = np.round(np.matmul(Y1[i, j], CT))
+Y = np.zeros((int(H/8), int(W/8), 8, 8))    # DCT 저장
+Y_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # Quantization
+zig_Y = np.zeros((int(H/8), int(W/8), 64))  # Zigzag scan
 
-
-# Y Quantization -> Y_hat
+# Quantize value
 Q = [[16,11,10,16,24,40,51,61],
      [12,12,14,19,26,58,60,55],
      [14,13,16,24,40,57,69,56],
@@ -143,17 +130,16 @@ Q = [[16,11,10,16,24,40,51,61],
      [49,64,78,87,103,121,120,101],
      [72,92,95,98,112,100,103,99]]
 
-Y_hat = np.zeros((int(H/8), int(W/8), 8, 8))
-
+# X 에 이미지를 8*8로 쪼개서 저장
+# Y 에 DCT 저장
+# Y_hat : Y Quantization
+# zig_Y : Y_hat zigzag scan
 for i in range(int(H/8)):
     for j in range(int(W/8)):
-        Y_hat[i, j,:, :] = np.round(Y[i, j] / Q)
-
-
-# Y_hat zigzag scan
-zig_Y = np.zeros((int(H/8), int(W/8), 64))
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
+        X[i, j, :, :] = img[i * 8: i * 8 + 8, j * 8: j * 8 + 8]
+        Y1[i, j, :, :] = np.matmul(C, X[i, j])
+        Y[i, j, :, :] = np.round(np.matmul(Y1[i, j], CT))
+        Y_hat[i, j, :, :] = np.round(Y[i, j] / Q)
         zig_Y[i, j] = zigzag(Y_hat[i, j])
 
 
@@ -220,38 +206,25 @@ for i in run_level:
         index += 1
 
 
+inv_zigzag = np.zeros((int(H/8), int(W/8), 8, 8))   # inverse zigzag
+deq = np.zeros((int(H/8), int(W/8), 8, 8))  # deq : Dequantization
+Cinv = np.linalg.inv(C)     # C inverse
+CTinv = np.linalg.inv(CT)   # CT inverse
+CinvV_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # Mutiply C inverse, deq
+X_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # IDCT 최종 결과
+img2 = np.zeros((H, W))     # 8 * 8 로 쪼개진 이미지를 합침
+
 # inverse zigzag
-inv_zigzag = np.zeros((int(H/8), int(W/8), 8, 8))
+# Dequantization
+# idct  /   역행렬 내장 함수 이용
+# 8 * 8 로 쪼개져있던 이미지를 img2에 합침
 for i in range(int(H/8)):
     for j in range(int(W/8)):
         inv_zigzag[i, j, :, :] = inverse_zigzag(de_run_level[i, j])
-
-
-# Dequantization
-deq = np.zeros((int(H/8), int(W/8), 8, 8))
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
         deq[i, j, :, :] = inv_zigzag[i, j, :, :] * Q
-
-
-# idct
-# 역행렬 내장 함수 이용
-Cinv = np.linalg.inv(C)
-CTinv = np.linalg.inv(CT)
-
-CinvV_hat = np.zeros((int(H/8), int(W/8), 8, 8))
-X_hat = np.zeros((int(H/8), int(W/8), 8, 8))
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
         CinvV_hat[i, j, :, :] = np.matmul(Cinv, deq[i, j])
         X_hat[i, j, :, :] = np.round(np.matmul(CinvV_hat[i, j], CTinv))
-
-
-# 8 * 8 로 쪼개져있던 이미지를 img2에 합침
-img2 = np.zeros((H, W))
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
-        img2[i * 8 : i * 8 + 8, j * 8 : j * 8 + 8] = X_hat[i, j, :, :]
+        img2[i * 8: i * 8 + 8, j * 8: j * 8 + 8] = X_hat[i, j, :, :]
 
 
 # 달라진 화소값 확인
