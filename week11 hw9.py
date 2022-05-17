@@ -4,9 +4,9 @@ import math
 
 
 def zigzag(input):
-    h, v, i = 0,0,0
+    h, v, i = 0, 0, 0
     output = np.zeros((64))
-    while ((v < 8) and (h < 8)): # going up
+    while ((v < 8) and (h < 8)):  # going up
         if ((h + v) % 2) == 0:
             if (v == 0):
                 output[i] = input[v, h]
@@ -49,10 +49,10 @@ def zigzag(input):
 
 
 def inverse_zigzag(input):
-    h, v, i = 0,0,0
-    output = np.zeros((8,8))
+    h, v, i = 0, 0, 0
+    output = np.zeros((8, 8))
     while ((v < 8) and (h < 8)):
-        if ((h + v) % 2) == 0: # going up
+        if ((h + v) % 2) == 0:  # going up
             if (v == 0):
                 output[v, h] = input[i]
                 if (h == 8):
@@ -106,7 +106,7 @@ for i in range(N):
         else:
             P = math.sqrt(2)
 
-        cij = P / math.sqrt(N) * math.cos(math.pi / N * (j + 1/2) * i)
+        cij = P / math.sqrt(N) * math.cos(math.pi / N * (j + 1 / 2) * i)
         row.append(cij)
     C.append(row)
 
@@ -114,34 +114,33 @@ C = np.array(C)
 CT = np.transpose(C)
 
 H, W = img.shape
-X = np.zeros((int(H/8), int(W/8), 8, 8))    # 이미지를 8*8로 저장할 배열
-Y1 = np.zeros((int(H/8), int(W/8), 8, 8))
-Y = np.zeros((int(H/8), int(W/8), 8, 8))    # DCT 저장
-Y_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # Quantization
-zig_Y = np.zeros((int(H/8), int(W/8), 64))  # Zigzag scan
+X = np.zeros((int(H / 8), int(W / 8), 8, 8))  # 이미지를 8*8로 저장할 배열
+Y1 = np.zeros((int(H / 8), int(W / 8), 8, 8))
+Y = np.zeros((int(H / 8), int(W / 8), 8, 8))  # DCT 저장
+Y_hat = np.zeros((int(H / 8), int(W / 8), 8, 8))  # Quantization
+zig_Y = np.zeros((int(H / 8), int(W / 8), 64))  # Zigzag scan
 
 # Quantize value
-Q = [[16,11,10,16,24,40,51,61],
-     [12,12,14,19,26,58,60,55],
-     [14,13,16,24,40,57,69,56],
-     [14,17,22,29,51,87,80,62],
-     [18,22,37,56,68,109,103,77],
-     [24,35,55,64,81,104,113,92],
-     [49,64,78,87,103,121,120,101],
-     [72,92,95,98,112,100,103,99]]
+Q = [[16, 11, 10, 16, 24, 40, 51, 61],
+     [12, 12, 14, 19, 26, 58, 60, 55],
+     [14, 13, 16, 24, 40, 57, 69, 56],
+     [14, 17, 22, 29, 51, 87, 80, 62],
+     [18, 22, 37, 56, 68, 109, 103, 77],
+     [24, 35, 55, 64, 81, 104, 113, 92],
+     [49, 64, 78, 87, 103, 121, 120, 101],
+     [72, 92, 95, 98, 112, 100, 103, 99]]
 
 # X 에 이미지를 8*8로 쪼개서 저장
 # Y 에 DCT 저장
 # Y_hat : Y Quantization
 # zig_Y : Y_hat zigzag scan
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
+for i in range(int(H / 8)):
+    for j in range(int(W / 8)):
         X[i, j, :, :] = img[i * 8: i * 8 + 8, j * 8: j * 8 + 8]
         Y1[i, j, :, :] = np.matmul(C, X[i, j])
         Y[i, j, :, :] = np.round(np.matmul(Y1[i, j], CT))
         Y_hat[i, j, :, :] = np.round(Y[i, j] / Q)
         zig_Y[i, j] = zigzag(Y_hat[i, j])
-
 
 # Run length coding
 run_level = list()  # H/8 * W/8 개의 zig_Y 데이터를 행부터 시작하여 한 줄로 쭉 표현할 리스트
@@ -150,47 +149,46 @@ num_zero = 0
 # 처음은 DC 값이 오므로 flag 를 1로 초기화
 flag = 1
 
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
+for i in range(int(H / 8)):
+    for j in range(int(W / 8)):
         for k in zig_Y[i, j]:
-            if flag == 1:   # 이번 넣을 값이 DC 값일 때
-                flag = 0    # flag clear
-                run_level.append(k)     # DC 값만 리스트에 올림
-            elif k != 0:    # DC 가 아닌 값이 0이 아닐 때
-                run_level.append((num_zero, k))     # 앞에 있던 0의 개수를 리스트에 함께 올림
-                num_zero = 0    # 0 개수 초기화
-            else:   # DC 가 아닌 값이 0일 때
-                num_zero += 1   # 0 개수 +1
-        run_level.append("EOB")     # 데이터 끝에 EOB 올림
+            if flag == 1:  # 이번 넣을 값이 DC 값일 때
+                flag = 0  # flag clear
+                run_level.append(k)  # DC 값만 리스트에 올림
+            elif k != 0:  # DC 가 아닌 값이 0이 아닐 때
+                run_level.append((num_zero, k))  # 앞에 있던 0의 개수를 리스트에 함께 올림
+                num_zero = 0  # 0 개수 초기화
+            else:  # DC 가 아닌 값이 0일 때
+                num_zero += 1  # 0 개수 +1
+        run_level.append("EOB")  # 데이터 끝에 EOB 올림
         num_zero = 0
-        flag = 1    # 다음 데이터에 DC 값이 오는 것을 표현
-
+        flag = 1  # 다음 데이터에 DC 값이 오는 것을 표현
 
 # De run length coding
-de_run_level = np.zeros((int(H/8), int(W/8), 64))
+de_run_level = np.zeros((int(H / 8), int(W / 8), 64))
 
 column = 0  # 열
-row = 0     # 행
-index = 0   # de_run_level index
-flag = 1    # 이번 데이터가 DC 임을 나타내는 flag
+row = 0  # 행
+index = 0  # de_run_level index
+flag = 1  # 이번 데이터가 DC 임을 나타내는 flag
 
 # i[0] : 첫번째 0의 갯수, i[1] : 0 이후에 오는 숫자
 for i in run_level:
-    if flag == 1:   # 처음일 때
-        de_run_level[column, row, index] = i    # DC값 설정
+    if flag == 1:  # 처음일 때
+        de_run_level[column, row, index] = i  # DC값 설정
         index += 1
-        flag = 0    # flag clear
+        flag = 0  # flag clear
 
-    elif i == 'EOB':    # EOB 일 때 : 행렬 인덱스 옮김, 마지막이라면 종료
-        index = 0   # 인덱스 초기화
-        flag = 1    # 다음 오는 데이터는 DC
-        if column == 63 and row == 63:    # 마지막이라면 종료
+    elif i == 'EOB':  # EOB 일 때 : 행렬 인덱스 옮김, 마지막이라면 종료
+        index = 0  # 인덱스 초기화
+        flag = 1  # 다음 오는 데이터는 DC
+        if column == int(H / 8) - 1 and row == int(W / 8) - 1:  # 마지막이라면 종료
             break
-        elif row == 63:  # 마지막 행일 때
-            column += 1 # 열을 옮김
-            row = 0     # 행 초기화
-        else:   # 마지막 행이 아닐 때
-            row += 1    # 행 옮김
+        elif row == int(W / 8) - 1:  # 마지막 행일 때
+            column += 1  # 열을 옮김
+            row = 0  # 행 초기화
+        else:  # 마지막 행이 아닐 때
+            row += 1  # 행 옮김
 
     elif i[0] == 0:  # 뒤에 0이 없는 경우 : 숫자 설정
         de_run_level[column, row, index] = i[1]  # 숫자를 설정
@@ -205,32 +203,36 @@ for i in run_level:
         de_run_level[column, row, index] = i[1]  # 0 이후에 나오는 숫자를 설정
         index += 1
 
-
-inv_zigzag = np.zeros((int(H/8), int(W/8), 8, 8))   # inverse zigzag
-deq = np.zeros((int(H/8), int(W/8), 8, 8))  # deq : Dequantization
-Cinv = np.linalg.inv(C)     # C inverse
-CTinv = np.linalg.inv(CT)   # CT inverse
-CinvV_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # Mutiply C inverse, deq
-X_hat = np.zeros((int(H/8), int(W/8), 8, 8))    # IDCT 최종 결과
-img2 = np.zeros((H, W))     # 8 * 8 로 쪼개진 이미지를 합침
+inv_zigzag = np.zeros((int(H / 8), int(W / 8), 8, 8))  # inverse zigzag
+deq = np.zeros((int(H / 8), int(W / 8), 8, 8))  # deq : Dequantization
+Cinv = np.linalg.inv(C)  # C inverse
+CTinv = np.linalg.inv(CT)  # CT inverse
+CinvV_hat = np.zeros((int(H / 8), int(W / 8), 8, 8))  # Mutiply C inverse, deq
+X_hat = np.zeros((int(H / 8), int(W / 8), 8, 8))  # IDCT 최종 결과
+img2 = np.zeros((H, W))  # 8 * 8 로 쪼개진 이미지를 합침
 
 # inverse zigzag
 # Dequantization
 # idct  /   역행렬 내장 함수 이용
 # 8 * 8 로 쪼개져있던 이미지를 img2에 합침
-for i in range(int(H/8)):
-    for j in range(int(W/8)):
+for i in range(int(H / 8)):
+    for j in range(int(W / 8)):
         inv_zigzag[i, j, :, :] = inverse_zigzag(de_run_level[i, j])
         deq[i, j, :, :] = inv_zigzag[i, j, :, :] * Q
         CinvV_hat[i, j, :, :] = np.matmul(Cinv, deq[i, j])
         X_hat[i, j, :, :] = np.round(np.matmul(CinvV_hat[i, j], CTinv))
         img2[i * 8: i * 8 + 8, j * 8: j * 8 + 8] = X_hat[i, j, :, :]
 
+# Exception over, underflow
+H, W = img2.shape
+for i in range(H):
+    for j in range(W):
+        if img2[i, j] > 255: img2[i, j] = 255
+        elif img2[i, j] < 0: img2[i, j] = 0
 
 # 달라진 화소값 확인
 print(X[0, 0])
 print(X_hat[0, 0])
-
 
 # image show
 cv2.imshow('Original', img)
