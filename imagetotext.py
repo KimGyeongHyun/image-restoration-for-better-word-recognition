@@ -4,6 +4,9 @@ import cv2
 import os
 # import matplotlib.pyplot as plt
 
+# define
+BINARY_STANDARD = 170   # binary image 만들때 화소값 기준
+
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
 def image_filter(input_img, method=0, k_size=1):
@@ -18,40 +21,48 @@ def image_filter(input_img, method=0, k_size=1):
      
      
      가우시안노이즈 일 때와, 가우시안 blur, salt and pepper 구분하여 입력받음
+     각각의 상태를 flag로 읽어와서 if 로 사용
+     아니면 어차피 함수에 값을 입력해야 하니 사용자가 값을 입력하게끔 함     default 사용
+     
+     
+     blur 상태는 글자가 붙어있으므로 open 사용해야 할 듯
+     inverse filter 로 restore 가능하다면 수행
      
      
      ################################################
      
      blur 처리
-     
      return_img = cv2.GaussianBlur(img, (7, 7), 2)
      
     """
 
     # 처음 Histogram Equalization 내장함수 사용시 글자가 두꺼워지며 부정적인 영향을 줌
-
     # return_img = cv2.equalizeHist(img)
 
     # gaussian noise 있을 경우 사용    /   잘못 사용시 글씨가 blur 처리 됨
     # noise_var = 100 일 때도 글자가 배경색이랑 비슷하면 blur 처리 됨
     # noise_var 을 줄여 글자가 blur 처리 안 되게 해야 함
-
+    # gaussian noise를 사용자가 인지하고 입력하게끔 만들 예정
     # return_img = adaptive_filtering(img, (7, 7), 50)
 
     # 효과가 있음, c 값이 높고 high 값이 높으면 다 없어질 때가 있음
     # 전반적으로 검은글씨는 가늘어지고, 흰색글씨는 두꺼워짐
-
     return_img = HF(return_img, cutoff=2, high=1.2, low=0.9, c=20)
 
-    # Morphology
-
-    return_img = morphology(return_img, method, k_size)
-
     # HQ
-
     return_img = set_value_to_min_max(return_img)
     # return_img = cv2.equalizeHist(return_img)     #linear하지 않음
 
+    # Set binary image
+    # 128 기준으로 정확도가 떨어지는 문제 발생
+    return_img = get_binary_image(return_img)
+
+    # Morphology
+    # binary image 에서만 test 가능
+    # image_filter 함수에서 method, k_size 입력이 없을시 수행되지 않음
+    return_img = morphology(return_img, method, k_size)
+
+    print("Print image")
     cv2.imshow('image', return_img)
     cv2.waitKey()
     cv2.destroyAllWindows()
@@ -61,6 +72,7 @@ def image_filter(input_img, method=0, k_size=1):
 
 # 가운데 패딩해주는 함수
 def Padding(input_img, filter_size):
+    print("Padding")
     iw, ih = input_img.shape
 
     fw, fh = filter_size
@@ -73,6 +85,7 @@ def Padding(input_img, filter_size):
 
 
 def adaptive_filtering(input_img, filter_size, noise_var):
+    print("Adaptive filter")
     iw, ih = input_img.shape
     fw, fh = filter_size
 
@@ -96,7 +109,7 @@ def adaptive_filtering(input_img, filter_size, noise_var):
 
 
 def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
-
+    print("Homomorphic filter")
     m, n = input_img.shape
 
     # Zero padding
@@ -244,6 +257,7 @@ def closing(input_img, k_size):
 
 
 def set_value_to_min_max(input_img):
+    print("HQ")
     return_img = input_img.copy()
     h, w = input_img.shape
     min_value = 0
@@ -264,6 +278,20 @@ def set_value_to_min_max(input_img):
     return return_img
 
 
+def get_binary_image(input_img):
+    print("get binary image")
+    return_img = input_img.copy()
+    h, w = input_img.shape
+
+    for i in range(h):
+        for j in range(w):
+            if input_img[i, j] < BINARY_STANDARD:
+                return_img[i, j] = 0
+            else:
+                return_img[i, j] = 255
+
+    return return_img.astype(np.uint8)
+
 if __name__ == "__main__":
 
     # 이미지를 읽어올 주소
@@ -277,6 +305,7 @@ if __name__ == "__main__":
     for file_name in file_list:
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
 
+        # Homomorphic filter 수행 금지
         result_img = image_filter(img)
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
 
