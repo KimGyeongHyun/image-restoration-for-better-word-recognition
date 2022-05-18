@@ -234,20 +234,21 @@ def closing(input_img, k_size):
 
 if __name__ == "__main__":
 
+    # 이미지를 읽어올 주소
     path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
+    # 변환된 이미지를 저장하고 텍스트를 추출해서 저장할 주소
+    save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
     file_list = os.listdir(path_dir)
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    result = open(path_dir+'\\output.txt', 'w')
+    result = open(save_dir+'\\output.txt', 'w')
 
     for file_name in file_list:
-        if file_name == "output.txt":
-            continue
         img = cv2.imread(path_dir+'\\'+file_name, cv2.IMREAD_GRAYSCALE)
 
         result_img = image_filter(img)
-        cv2.imwrite(path_dir+'\\'+file_name+'_filtered.jpg', result_img)
+        cv2.imwrite(save_dir+'\\'+file_name+'_filtered.jpg', result_img)
 
-        result.write(pytesseract.image_to_string(path_dir+'\\'+file_name+'_filtered.jpg', lang='ENG',
+        result.write(pytesseract.image_to_string(save_dir+'\\'+file_name+'_filtered.jpg', lang='ENG',
                                                  config='--psm 4 -c preserve_interword_spaces=1')+'\n')
     result.close()
     print("complete")
