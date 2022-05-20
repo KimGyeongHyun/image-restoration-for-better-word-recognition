@@ -2,7 +2,7 @@ import pytesseract
 import numpy as np
 import cv2
 import os
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 # define
 BINARY_STANDARD = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
@@ -14,14 +14,16 @@ CLOSING = 4
 
 # 필터를 수행할지 결정하는 플래그
 # 아래 순서로 필터링 진행
-FIRST_LINEAR_HQ = False
-ADAPTIVE = False
-MEDIAN = False
-flag_homomorphic = True
-HOMOMORPHIC = flag_homomorphic
-SECOND_LINEAR_HQ = flag_homomorphic
-BINARY = False
-MORPHOLOGY = False
+firstLinearHEFlag = False
+adaptiveFlag = False
+antiGaussianFlag = False
+medianFlag = True
+# flag_homomorphic = False
+homomorphicFlag = True
+secondLinearHEFlag = False
+gammaCorrectionFlag = False
+binaryFlag = False
+morphologyFlag = False
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
@@ -68,36 +70,48 @@ def image_filter(input_img, method=0, k_size=3):
 
     # 처음 Histogram Equalization 내장함수 사용시 글자가 두꺼워지며 부정적인 영향을 줌
     # 선형 HQ 사용
-    if FIRST_LINEAR_HQ:
+    if firstLinearHEFlag:
         return_img = set_value_to_min_max(return_img)
 
     # gaussian noise 있을 경우 사용    /   잘못 사용시 글씨가 blur 처리 됨
     # noise_var = 100 일 때도 글자가 배경색이랑 비슷하면 blur 처리 됨
     # noise_var 을 줄여 글자가 blur 처리 안 되게 해야 함
     # gaussian noise를 사용자가 인지하고 입력하게끔 만들 예정
-    if ADAPTIVE:
-        return_img = adaptive_filtering(return_img, (7, 7), 50)
+    # 아니면 gaussian만 반대로 하는 함수를 만들어야 할듯
+    if adaptiveFlag:
+        return_img = adaptive_filtering(return_img, (7, 7), 180)
+
+    # 효과 없음
+    if antiGaussianFlag:
+        return_img = anti_gaussian(input_img)
 
     # salt and pepper noise 제거      median filter
-    # kernel size 5이상이면 글자 손상
-    if MEDIAN:
+    # 글자가 작으면 kernel size 3이어도 손상나는 것을 확인
+    # 큰 글자에서만 적용 가능
+    # 사실 큰 글자면 salt and pepper noise 는 있으나 마나일듯
+    if medianFlag:
         return_img = median_filter(return_img, 3)
 
     # Homomorphic filter
     # 효과가 있음, c 값이 높고 high 값이 높으면 다 없어질 때가 있음
     # 전반적으로 검은글씨는 가늘어지고, 흰색글씨는 두꺼워짐
-    if HOMOMORPHIC:
+    if homomorphicFlag:
         return_img = HF(return_img, cutoff=2, high=1.2, low=0.9, c=20)
 
     # HQ
-    # salt and pepper noise가 완벽히 제거되지 않으면 효과없음  대안 필요
-    if SECOND_LINEAR_HQ:
+    # salt and pepper, gaussian noise 이후 eq 완벽히 되지 않음  대안 필요
+    # 이유는 글자보다 노이즈의 min, max값이 크기 때문
+    # 감마값을 건드려야 할듯
+    if secondLinearHEFlag:
         return_img = set_value_to_min_max(return_img)
     # return_img = cv2.equalizeHist(return_img)     #linear하지 않음
 
+    if gammaCorrectionFlag:
+        return_img = gamma_correction(return_img)
+
     # Set binary image
     # 128 기준으로 정확도가 떨어지는 문제 발생  /   조정
-    if BINARY:
+    if binaryFlag:
         return_img = get_binary_image(return_img)
 
     # Morphology
@@ -105,7 +119,7 @@ def image_filter(input_img, method=0, k_size=3):
     # image_filter 함수에서 method, k_size 입력이 없을시 수행되지 않음
     # 글자가 작으면 kernel size 3이어도 글자 손상 발생
     # 글자가 적당히 크고 얇고 끊어질 때만 사용 가능할듯  /   binary 단계에서까지 글자가 손상됨
-    if MORPHOLOGY:
+    if morphologyFlag:
         return_img = morphology(return_img, method, k_size)
 
     print("Print image")
@@ -118,7 +132,6 @@ def image_filter(input_img, method=0, k_size=3):
 
 # 테두리 패딩해주는 함수
 def Padding(input_img, filter_size):
-    print("Padding")
     iw, ih = input_img.shape
 
     fw, fh = filter_size
@@ -152,6 +165,41 @@ def adaptive_filtering(input_img, filter_size, noise_var):
 
     out = out.astype(np.uint8)
     return out
+
+
+def make_noise(std, gray):
+    h, w = gray.shape
+    img_noise = np.zeros((h, w))
+    for i in range(h):
+        for j in range(w):
+            make_noise = np.random.normal()
+            set_noise = std * make_noise
+            img_noise[i, j] = gray[i, j] + set_noise
+            if img_noise[i, j] > 255:
+                img_noise[i, j] = 255
+
+    return img_noise
+
+
+def anti_gaussian(input_img):
+    print("Anti gaussian...")
+    h, w = input_img.shape
+    return_img = np.zeros((h, w), dtype=np.float64)
+
+    for i in range(30):
+        return_img += make_noise(15, input_img)
+        print(i)
+
+    return_img = return_img/30
+
+    for i in range(h):
+        for j in range(w):
+            if return_img[i, j] > 255:
+                return_img[i, j] = 255
+            elif return_img[i, j] < 0:
+                return_img[i, j] = 0
+
+    return return_img.astype(np.uint8)
 
 
 def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
@@ -313,28 +361,6 @@ def closing(input_img, k_size):
     return func_closed_img
 
 
-def set_value_to_min_max(input_img):
-    print("HQ...")
-    return_img = input_img.copy()
-    h, w = input_img.shape
-    min_value = 0
-    max_value = 255
-    img_min = np.min(input_img)  # 100
-    img_max = np.max(input_img)  # 200
-
-    # 예외처리
-    if img_max - img_min == 0:
-        return input_img
-
-    for i in range(h):
-        for j in range(w):
-            return_img[i, j] = (input_img[i, j] - img_min) * ((max_value - min_value) / (img_max - img_min))
-
-    return_img = return_img.astype(np.uint8)
-
-    return return_img
-
-
 def get_binary_image(input_img):
     print("Get binary image...")
     return_img = input_img.copy()
@@ -377,6 +403,43 @@ def median_filter(input_img, kernel_size):
     return return_img
 
 
+def set_value_to_min_max(input_img):
+    print("HQ...")
+    return_img = input_img.copy()
+    h, w = input_img.shape
+    min_value = 0
+    max_value = 255
+    img_min = np.min(input_img)  # 100
+    img_max = np.max(input_img)  # 200
+
+    # 예외처리
+    if img_max - img_min == 0:
+        return input_img
+
+    for i in range(h):
+        for j in range(w):
+            return_img[i, j] = (input_img[i, j] - img_min) * ((max_value - min_value) / (img_max - img_min))
+
+    return_img = return_img.astype(np.uint8)
+
+    return return_img
+
+
+def gamma_correction(input_img, c_param=3):
+    print("Gamma correction...")
+    normalized_img = input_img/255
+    h, w = input_img.shape
+    return_img = np.zeros((h, w))
+
+    for i in range(h):
+        for j in range(w):
+            return_img[i, j] = normalized_img[i, j] ** c_param
+
+    return_img = (return_img * 255).astype(np.uint8)
+
+    return return_img
+
+
 if __name__ == "__main__":
 
     # 이미지를 읽어올 주소
@@ -393,6 +456,7 @@ if __name__ == "__main__":
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
         result_img = image_filter(img, CLOSING)
+
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
 
