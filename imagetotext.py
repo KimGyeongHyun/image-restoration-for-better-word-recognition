@@ -2,7 +2,8 @@ import pytesseract
 import numpy as np
 import cv2
 import os
-import matplotlib.pyplot as plt
+import math
+# import matplotlib.pyplot as plt
 
 # define
 BINARY_STANDARD = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
@@ -16,10 +17,10 @@ CLOSING = 4
 # 아래 순서로 필터링 진행
 firstLinearHEFlag = False
 adaptiveFlag = False
-antiGaussianFlag = False
-medianFlag = True
+medianFlag = False
+bilateralFilterFlag = True
 # flag_homomorphic = False
-homomorphicFlag = True
+homomorphicFlag = False
 secondLinearHEFlag = False
 gammaCorrectionFlag = False
 binaryFlag = False
@@ -81,16 +82,16 @@ def image_filter(input_img, method=0, k_size=3):
     if adaptiveFlag:
         return_img = adaptive_filtering(return_img, (7, 7), 180)
 
-    # 효과 없음
-    if antiGaussianFlag:
-        return_img = anti_gaussian(input_img)
-
     # salt and pepper noise 제거      median filter
     # 글자가 작으면 kernel size 3이어도 손상나는 것을 확인
     # 큰 글자에서만 적용 가능
     # 사실 큰 글자면 salt and pepper noise 는 있으나 마나일듯
+    # 내장함수 bilateral filter 사용
     if medianFlag:
         return_img = median_filter(return_img, 3)
+    if bilateralFilterFlag:
+        print("BilateralFilter...")
+        return_img = cv2.bilateralFilter(return_img, -1, 70, 30)
 
     # Homomorphic filter
     # 효과가 있음, c 값이 높고 high 값이 높으면 다 없어질 때가 있음
@@ -165,41 +166,6 @@ def adaptive_filtering(input_img, filter_size, noise_var):
 
     out = out.astype(np.uint8)
     return out
-
-
-def make_noise(std, gray):
-    h, w = gray.shape
-    img_noise = np.zeros((h, w))
-    for i in range(h):
-        for j in range(w):
-            make_noise = np.random.normal()
-            set_noise = std * make_noise
-            img_noise[i, j] = gray[i, j] + set_noise
-            if img_noise[i, j] > 255:
-                img_noise[i, j] = 255
-
-    return img_noise
-
-
-def anti_gaussian(input_img):
-    print("Anti gaussian...")
-    h, w = input_img.shape
-    return_img = np.zeros((h, w), dtype=np.float64)
-
-    for i in range(30):
-        return_img += make_noise(15, input_img)
-        print(i)
-
-    return_img = return_img/30
-
-    for i in range(h):
-        for j in range(w):
-            if return_img[i, j] > 255:
-                return_img[i, j] = 255
-            elif return_img[i, j] < 0:
-                return_img[i, j] = 0
-
-    return return_img.astype(np.uint8)
 
 
 def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
@@ -440,6 +406,27 @@ def gamma_correction(input_img, c_param=3):
     return return_img
 
 
+# Wiener filter 에 사용할 커널 사이즈의 가우시안 함수
+def gaussian_blur_func(kernel_size, sigma):
+
+    extend_value = kernel_size//2
+    return_filter = np.zeros((kernel_size, kernel_size))
+
+    for i in range(kernel_size):
+        for j in range(kernel_size):
+            up = - ((i - extend_value) ** 2 + (j - extend_value) ** 2) / (2 * (sigma ** 2))
+            exp = np.exp(up)
+            exp = exp / (2 * math.pi * (sigma ** 2))
+            return_filter[i, j] = exp
+
+    return return_filter
+
+
+def wiener_filter(input_img, kernel_shape=(5, 5), sigma=2):
+
+    return
+
+
 if __name__ == "__main__":
 
     # 이미지를 읽어올 주소
@@ -452,7 +439,6 @@ if __name__ == "__main__":
 
     for file_name in file_list:
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
-
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
         result_img = image_filter(img, CLOSING)
@@ -465,3 +451,59 @@ if __name__ == "__main__":
                                                  config='--psm 4 -c preserve_interword_spaces=1') + '\n')
     result.close()
     print("complete")
+
+
+"""
+def sp_noise(image, prob):
+    '''
+    Add salt and pepper noise to image
+    prob: Probability of the noise
+    '''
+    output = np.zeros(image.shape, np.uint8)
+    thres = 1 - prob
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            rdn = random.random()
+            if rdn < prob:
+                output[i][j] = 0
+            elif rdn > thres:
+                output[i][j] = 255
+            else:
+                output[i][j] = image[i][j]
+    return output
+    
+    
+def make_noise(std, gray):
+    h, w = gray.shape
+    img_noise = np.zeros((h, w))
+    for i in range(h):
+        for j in range(w):
+            make_noise = np.random.normal()
+            set_noise = std * make_noise
+            img_noise[i, j] = gray[i, j] + set_noise
+            if img_noise[i, j] > 255:
+                img_noise[i, j] = 255
+
+    return img_noise
+
+
+def anti_gaussian(input_img):
+    print("Anti gaussian...")
+    h, w = input_img.shape
+    return_img = np.zeros((h, w), dtype=np.float64)
+
+    for i in range(30):
+        return_img += make_noise(15, input_img)
+        print(i)
+
+    return_img = return_img/30
+
+    for i in range(h):
+        for j in range(w):
+            if return_img[i, j] > 255:
+                return_img[i, j] = 255
+            elif return_img[i, j] < 0:
+                return_img[i, j] = 0
+
+    return return_img.astype(np.uint8)
+"""
