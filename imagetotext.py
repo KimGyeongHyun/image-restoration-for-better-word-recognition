@@ -4,6 +4,8 @@ import cv2
 import os
 import math
 # import matplotlib.pyplot as plt
+from textblob import Word
+import re
 
 # define
 binaryStandard = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
@@ -592,6 +594,7 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
 
     if user_max == 0:
         print("Error")
+        user_max = 1
 
     print(user_min)
     print(user_max)
@@ -625,16 +628,44 @@ if __name__ == "__main__":
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
-        for i in range(2**13):
-            result_img = image_filter(img, i)
+
+        masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0]
+
+        corrects = 0
+        for mask in masks:
+            print('mask : ', bin(mask))
+
+            filtered_img = image_filter(img, mask)
+            cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+            sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+            # split
+            words = sentence.split()
+            # lower case
+            words = [word.lower() for word in words]
+            # remove punctuations signs
+            words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+            count = 0
+            for word in words:
+                result_word = Word(word)
+                result_word = result_word.spellcheck()
+                if len(result_word) == 1:
+                    count += 1
+
+            if corrects < count:
+                result_img = filtered_img
+                corrects = count
+
+            print('count : ', count)
+
+        # 이미지 저장
+        cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
 
         print("Print image")
         cv2.imshow('image', result_img)
         cv2.waitKey()
         cv2.destroyAllWindows()
-
-        # 이미지 저장
-        cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
 
         # 필터링된 이미지에서 텍스트를 추출해서 output.txt에 작성
         result.write(pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg', lang='ENG',
