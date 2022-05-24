@@ -6,7 +6,8 @@ import math
 # import matplotlib.pyplot as plt
 
 # define
-BINARY_STANDARD = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
+binaryStandard = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
+median_repeat_times = 3
 NONE = 0
 EROSION = 1
 DILATION = 2
@@ -15,16 +16,25 @@ CLOSING = 4
 
 # 필터를 수행할지 결정하는 플래그
 # 아래 순서로 필터링 진행
+
 firstLinearHEFlag = False
+userEqualizationFirstSAPFlag = False
+
 adaptiveFlag = False
-medianFlag = True
-bilateralFilterFlag = False
-# flag_homomorphic = False
-homomorphicFlag = False
+innerOpeningFlag = True
+innerClosingFlag = False
+medianFlag = False
+
+bilateralFilterFlag = True
+homomorphicFlag = True
+
 secondLinearHEFlag = False
 gammaCorrectionFlag = False
+userEqualizationSecondFlag = True
+
 binaryFlag = False
-adaptiveThresholdFlag = True
+adaptiveThresholdFlag = False
+
 morphologyFlag = False
 
 
@@ -70,75 +80,112 @@ def image_filter(input_img, method=0, k_size=3):
      
      #################################################
      
-     정리
+     노이즈마다 다른 알고리즘 사용
      
-     1) first he
-     2) adaptive
-     3) median -> bilateral
-     4) homo    물결
-     5) second he   /   gamma correction
-     6) binary  ->  adaptive threshold
-     7) morphology
+     - 가우시안 노이즈
+        inner opening -> bilateral -> homo -> user
+        
      
     """
 
+    #####################################################################################################
+    # 처음 Eq
+
     # 처음 Histogram Equalization 내장함수 사용시 글자가 두꺼워지며 부정적인 영향을 줌
     # 선형 HQ 사용
+
+    # user eq 의 경우 값만 잘 넣으면 SAP 가 제거됨
+
     if firstLinearHEFlag:
         return_img = set_value_to_min_max(return_img)
+    if userEqualizationFirstSAPFlag:
+        return_img = user_equalization(return_img)
+
+    #####################################################################################################
+    # 초반 노이즈 제거
 
     # gaussian noise 있을 경우 사용    /   잘못 사용시 글씨가 blur 처리 됨
     # noise_var = 100 일 때도 글자가 배경색이랑 비슷하면 blur 처리 됨
     # noise_var 을 줄여 글자가 blur 처리 안 되게 해야 함
     # gaussian noise를 사용자가 인지하고 입력하게끔 만들 예정
     # 아니면 gaussian만 반대로 하는 함수를 만들어야 할듯
-    if adaptiveFlag:
-        return_img = adaptive_filtering(return_img, (7, 7), 180)
 
-    # salt and pepper noise 제거      median filter
+    # inner opening 의 경우 SAP는 제거가 되지만 interpolation 필요함
+    # 가우시안 노이즈의 경우 격자무늬가 보이지만 어느정도 커버가 되는 것을 확인
+    # HE 만 잘 된다면 선명하게 보일듯
+
+    # median filter : salt and pepper noise 제거
     # 글자가 작으면 kernel size 3이어도 손상나는 것을 확인
     # 큰 글자에서만 적용 가능
     # 사실 큰 글자면 salt and pepper noise 는 있으나 마나일듯
-    # 내장함수 bilateral filter 사용
+    # 얼마나 반복할 건지
+
+    if adaptiveFlag:
+        return_img = adaptive_filtering(return_img, (7, 7), 180)
+    if innerOpeningFlag:
+        return_img = inner_opening_filter(return_img)
+    if innerClosingFlag:
+        return_img = inner_closing_filter(return_img)
     if medianFlag:
-        return_img = median_filter(return_img, 3)
-        return_img = median_filter(return_img, 3)
-    if bilateralFilterFlag:
-        return_img = bilateral_filter(return_img)
+        for i in range(median_repeat_times):
+            return_img = median_filter(return_img, 3)
+
+    #####################################################################################################
+    # 이후 노이즈 제거
+
+    # 내장함수 bilateral filter 사용
+    # SAP 제거용으로는 안 좋음
+    # inner opening 이 SAP 잘 제거하는 것을 확인
+    # 이후에 나오는 노이즈를 잘 잡음
 
     # Homomorphic filter
     # 효과가 있음, c 값이 높고 high 값이 높으면 다 없어질 때가 있음
     # 전반적으로 검은글씨는 가늘어지고, 흰색글씨는 두꺼워짐
+
+    if bilateralFilterFlag:
+        return_img = bilateral_filter(return_img)
     if homomorphicFlag:
         return_img = HF(return_img, cutoff=2, high=1.2, low=0.9, c=20)
 
+    #####################################################################################################
+    # 두번째 Eq
+
     # HQ
-    # salt and pepper, gaussian noise 이후 eq 완벽히 되지 않음  대안 필요
+    # 선형 HE 는 salt and pepper, gaussian noise 이후 eq 완벽히 되지 않음  대안 필요
     # 이유는 글자보다 노이즈의 min, max값이 크기 때문
-    # 감마값을 건드려야 할듯
-    if secondLinearHEFlag:
-        return_img = set_value_to_min_max(return_img)
-    # return_img = cv2.equalizeHist(return_img)     #linear하지 않음
+    # user eq 로 대체
+    if userEqualizationSecondFlag:
+        return_img = user_equalization(return_img)
+
+    # 검은색 글자를 뚜렷하게 해줌
 
     if gammaCorrectionFlag:
         return_img = gamma_correction(return_img)
 
+    #####################################################################################################
+    # binary 이미지 가져오기
+
     # Set binary image
-    # 128 기준으로 정확도가 떨어지는 문제 발생  /   조정
+    # 128 기준으로 정확도가 떨어지는 문제 발생  /   170 으로 조정
+
     # adaptive threshold 테스트 결과 : 성능 좋음
     # 어느정도 블러된 이미지도 처리, 저주파 제거, 글자 안쪽은 하얗게 변함
     # salt and pepper의 경우 글자는 잘 보이지만 나머지 부분에 노이즈 심해짐 (글자 잘 보임) / 인식을 못함
     # 가우시안 노이즈의 경우에만 잘 되지 않음
+
     if binaryFlag:
         return_img = get_binary_image(return_img)
     if adaptiveThresholdFlag:
         return_img = adaptive_threshold_filter(return_img)
 
+    #####################################################################################################
     # Morphology
+
     # binary image 에서만 test 가능
     # image_filter 함수에서 method, k_size 입력이 없을시 수행되지 않음
     # 글자가 작으면 kernel size 3이어도 글자 손상 발생
     # 글자가 적당히 크고 얇고 끊어질 때만 사용 가능할듯  /   binary 단계에서까지 글자가 손상됨
+
     if morphologyFlag:
         return_img = morphology(return_img, method, k_size)
 
@@ -349,7 +396,7 @@ def get_binary_image(input_img):
 
     for i in range(h):
         for j in range(w):
-            if input_img[i, j] < BINARY_STANDARD:
+            if input_img[i, j] < binaryStandard:
                 return_img[i, j] = 0
             else:
                 return_img[i, j] = 255
@@ -450,6 +497,72 @@ def gaussian_blur_func(kernel_size, sigma):
             return_filter[i, j] = exp
 
     return return_filter
+
+
+def inner_opening_filter(input_img):
+    print("Inner opening filter...")
+    kernel = np.ones((3, 3), np.uint8)
+    return_img = cv2.morphologyEx(input_img, cv2.MORPH_OPEN, kernel)
+
+    return return_img
+
+
+def inner_closing_filter(input_img):
+    print("Inner opening filter...")
+    kernel = np.ones((3, 3), np.uint8)
+    return_img = cv2.morphologyEx(input_img, cv2.MORPH_CLOSE, kernel)
+
+    return return_img
+
+
+def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
+    print("User equalization...")
+    h, w = input_img.shape
+    return_img = np.zeros((h, w))
+
+    count = np.zeros(256)
+    pixel_number = h * w
+    pixel_sum = 0
+    user_min = 0
+    user_max = 0
+
+    for i in range(h):
+        for j in range(w):
+            pixel_value = input_img[i, j]
+            count[pixel_value] += 1
+
+    for i in range(256):
+        pixel_sum += count[i]
+        if pixel_sum > (pixel_number * min_thresh_prob):
+            user_min = i
+            break
+
+    pixel_sum = 0
+    for i in range(256):
+        pixel_sum += count[i]
+        if pixel_sum > (pixel_number * max_thresh_prob):
+            user_max = i
+            break
+
+    if user_max == 0:
+        print("Error")
+
+    print(user_min)
+    print(user_max)
+
+    min_value = 0
+    max_value = 255
+
+    for i in range(h):
+        for j in range(w):
+            temp_min = input_img[i, j] - user_min
+            if temp_min < 0:
+                temp_min = 0
+            return_img[i, j] = temp_min * ((max_value - min_value) / (user_max - user_min))
+            if return_img[i, j] > 255:
+                return_img[i, j] = 255
+
+    return return_img.astype(np.uint8)
 
 
 if __name__ == "__main__":
