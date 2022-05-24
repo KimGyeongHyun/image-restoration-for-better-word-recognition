@@ -14,33 +14,92 @@ DILATION = 2
 OPENING = 3
 CLOSING = 4
 
-# 필터를 수행할지 결정하는 플래그
-# 아래 순서로 필터링 진행
-
-firstLinearHEFlag = False
-userEqualizationFirstSAPFlag = False
-
-adaptiveFlag = False
-innerOpeningFlag = True
-innerClosingFlag = False
-medianFlag = False
-
-bilateralFilterFlag = True
-homomorphicFlag = True
-
-secondLinearHEFlag = False
-gammaCorrectionFlag = False
-userEqualizationSecondFlag = True
-
-binaryFlag = False
-adaptiveThresholdFlag = False
-
-morphologyFlag = False
+# masking
+MASK13 = 0b10_0000_00_00_00_0
+MASK12 = 0b01_0000_00_00_00_0
+MASK11 = 0b00_1000_00_00_00_0
+MASK10 = 0b00_0100_00_00_00_0
+MASK9 = 0b00_0010_00_00_00_0
+MASK8 = 0b00_0001_00_00_00_0
+MASK7 = 0b00_0000_10_00_00_0
+MASK6 = 0b00_0000_01_00_00_0
+MASK5 = 0b00_0000_00_10_00_0
+MASK4 = 0b00_0000_00_01_00_0
+MASK3 = 0b00_0000_00_00_10_0
+MASK2 = 0b00_0000_00_00_01_0
+MASK1 = 0b00_0000_00_00_00_1
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
-def image_filter(input_img, method=0, k_size=3):
+def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3):
     return_img = input_img.copy()
+
+    # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
+
+    if (flag_value & MASK13) == MASK13:
+        firstLinearHEFlag = True
+    else:
+        firstLinearHEFlag = False
+
+    if (flag_value & MASK12) == MASK12:
+        userEqualizationFirstSAPFlag = True
+    else:
+        userEqualizationFirstSAPFlag = False
+
+    if (flag_value & MASK11) == MASK11:
+        adaptiveFlag = True
+    else:
+        adaptiveFlag = False
+
+    if (flag_value & MASK10) == MASK10:
+        innerOpeningFlag = True
+    else:
+        innerOpeningFlag = False
+
+    if (flag_value & MASK9) == MASK9:
+        innerClosingFlag = True
+    else:
+        innerClosingFlag = False
+
+    if (flag_value & MASK8) == MASK8:
+        medianFlag = True
+    else:
+        medianFlag = False
+
+    if (flag_value & MASK7) == MASK7:
+        bilateralFilterFlag = True
+    else:
+        bilateralFilterFlag = False
+
+    if (flag_value & MASK6) == MASK6:
+        homomorphicFlag = True
+    else:
+        homomorphicFlag = False
+
+    if (flag_value & MASK5) == MASK5:
+        gammaCorrectionFlag = True
+    else:
+        gammaCorrectionFlag = False
+
+    if (flag_value & MASK4) == MASK4:
+        userEqualizationSecondFlag = True
+    else:
+        userEqualizationSecondFlag = False
+
+    if (flag_value & MASK3) == MASK3:
+        binaryFlag = True
+    else:
+        binaryFlag = False
+
+    if (flag_value & MASK2) == MASK2:
+        adaptiveThresholdFlag = True
+    else:
+        adaptiveThresholdFlag = False
+
+    if (flag_value & MASK1) == MASK1:
+        morphologyFlag = True
+    else:
+        morphologyFlag = False
 
     """
     
@@ -63,14 +122,6 @@ def image_filter(input_img, method=0, k_size=3):
      쓸만한 전처리 과정만 가져오고, 나머지는 버리는게 더 좋음
      앞서 말했듯 flag를 사용하여 어떤 전처리를 쓸건지 가져와야 할듯
      -> 전역변수 bool flag 사용
-     
-     morphology true 의 경우 종류와 커널사이즈(3) 을 결정해야 함
-     어떻게 넣을지 생각 
-     1) 전역변수
-     2) 직접
-     
-     salt and pepper noise 가 완벽히 제거되지 않으면 linear HQ 효과없음
-     salt and pepper noise 에만 사용하는 HQ 만들기
      
      
      ################################################
@@ -188,11 +239,6 @@ def image_filter(input_img, method=0, k_size=3):
 
     if morphologyFlag:
         return_img = morphology(return_img, method, k_size)
-
-    print("Print image")
-    cv2.imshow('image', return_img)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
 
     return return_img
 
@@ -579,7 +625,13 @@ if __name__ == "__main__":
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
-        result_img = image_filter(img, CLOSING)
+        for i in range(2**13):
+            result_img = image_filter(img, i)
+
+        print("Print image")
+        cv2.imshow('image', result_img)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
@@ -644,4 +696,34 @@ def anti_gaussian(input_img):
                 return_img[i, j] = 0
 
     return return_img.astype(np.uint8)
+    
+    
+    
+    
+    # 필터를 수행할지 결정하는 플래그
+    # 아래 순서로 필터링 진행
+
+    firstLinearHEFlag = False
+    userEqualizationFirstSAPFlag = False
+
+    adaptiveFlag = False
+    innerOpeningFlag = True
+    innerClosingFlag = False
+    medianFlag = False
+
+    bilateralFilterFlag = True
+    homomorphicFlag = True
+
+    gammaCorrectionFlag = False
+    userEqualizationSecondFlag = True
+
+    binaryFlag = False
+    adaptiveThresholdFlag = False
+
+    morphologyFlag = False
+    
+    
+    
+    
+    
 """
