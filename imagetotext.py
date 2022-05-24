@@ -17,13 +17,14 @@ CLOSING = 4
 # 아래 순서로 필터링 진행
 firstLinearHEFlag = False
 adaptiveFlag = False
-medianFlag = False
-bilateralFilterFlag = True
+medianFlag = True
+bilateralFilterFlag = False
 # flag_homomorphic = False
 homomorphicFlag = False
 secondLinearHEFlag = False
 gammaCorrectionFlag = False
 binaryFlag = False
+adaptiveThresholdFlag = True
 morphologyFlag = False
 
 
@@ -67,6 +68,18 @@ def image_filter(input_img, method=0, k_size=3):
      blur 처리
      return_img = cv2.GaussianBlur(img, (7, 7), 2)
      
+     #################################################
+     
+     정리
+     
+     1) first he
+     2) adaptive
+     3) median -> bilateral
+     4) homo    물결
+     5) second he   /   gamma correction
+     6) binary  ->  adaptive threshold
+     7) morphology
+     
     """
 
     # 처음 Histogram Equalization 내장함수 사용시 글자가 두꺼워지며 부정적인 영향을 줌
@@ -89,9 +102,9 @@ def image_filter(input_img, method=0, k_size=3):
     # 내장함수 bilateral filter 사용
     if medianFlag:
         return_img = median_filter(return_img, 3)
+        return_img = median_filter(return_img, 3)
     if bilateralFilterFlag:
-        print("BilateralFilter...")
-        return_img = cv2.bilateralFilter(return_img, -1, 70, 30)
+        return_img = bilateral_filter(return_img)
 
     # Homomorphic filter
     # 효과가 있음, c 값이 높고 high 값이 높으면 다 없어질 때가 있음
@@ -112,8 +125,14 @@ def image_filter(input_img, method=0, k_size=3):
 
     # Set binary image
     # 128 기준으로 정확도가 떨어지는 문제 발생  /   조정
+    # adaptive threshold 테스트 결과 : 성능 좋음
+    # 어느정도 블러된 이미지도 처리, 저주파 제거, 글자 안쪽은 하얗게 변함
+    # salt and pepper의 경우 글자는 잘 보이지만 나머지 부분에 노이즈 심해짐 (글자 잘 보임) / 인식을 못함
+    # 가우시안 노이즈의 경우에만 잘 되지 않음
     if binaryFlag:
         return_img = get_binary_image(return_img)
+    if adaptiveThresholdFlag:
+        return_img = adaptive_threshold_filter(return_img)
 
     # Morphology
     # binary image 에서만 test 가능
@@ -264,6 +283,30 @@ def morphology(input_img, method, k_size=3):
     :return:
     """
 
+    def erosion(boundary=None, input_kernel=None):
+        boundary = boundary * input_kernel
+        if np.min(boundary) == 0:
+            return 0
+        else:
+            return 255
+
+    def dilation(boundary=None, input_kernel=None):
+        boundary = boundary * input_kernel
+        if np.max(boundary) != 0:
+            return 255
+        else:
+            return 0
+
+    def opening(input_input_img, input_k_size):
+        erosion_img = morphology(input_input_img, 1, input_k_size)
+        func_opened_img = morphology(erosion_img, 2, input_k_size)
+        return func_opened_img
+
+    def closing(input_input_img, input_k_size):
+        dilation_img = morphology(input_input_img, 2, input_k_size)
+        func_closed_img = morphology(dilation_img, 1, input_k_size)
+        return func_closed_img
+
     h, w = input_img.shape
     pad = k_size // 2  # 몫 연산
     # 커널크기의 1/2 로 제로패딩
@@ -299,34 +342,6 @@ def morphology(input_img, method, k_size=3):
     return morp_result
 
 
-def erosion(boundary=None, kernel=None):
-    boundary = boundary * kernel
-    if np.min(boundary) == 0:
-        return 0
-    else:
-        return 255
-
-
-def dilation(boundary=None, kernel=None):
-    boundary = boundary * kernel
-    if np.max(boundary) != 0:
-        return 255
-    else:
-        return 0
-
-
-def opening(input_img, k_size):
-    erosion_img = morphology(input_img, 1, k_size)
-    func_opened_img = morphology(erosion_img, 2, k_size)
-    return func_opened_img
-
-
-def closing(input_img, k_size):
-    dilation_img = morphology(input_img, 2, k_size)
-    func_closed_img = morphology(dilation_img, 1, k_size)
-    return func_closed_img
-
-
 def get_binary_image(input_img):
     print("Get binary image...")
     return_img = input_img.copy()
@@ -344,6 +359,14 @@ def get_binary_image(input_img):
     # cv2.destroyAllWindows()
 
     return return_img.astype(np.uint8)
+
+
+def adaptive_threshold_filter(input_img):
+    print("Adaptive threshold filtering...")
+    return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY, 11, 2)
+
+    return return_img
 
 
 def median_filter(input_img, kernel_size):
@@ -365,6 +388,13 @@ def median_filter(input_img, kernel_size):
                     partlist[x + y * kernel_size] = padded_img[i + x, j + y]    # 최대 m + kernel_size - 2
             partlist.sort()
             return_img[i, j] = partlist[(kernel_size * kernel_size) // 2]
+
+    return return_img
+
+
+def bilateral_filter(input_img):
+    print("BilateralFilter...")
+    return_img = cv2.bilateralFilter(input_img, -1, 10, 10)
 
     return return_img
 
@@ -420,11 +450,6 @@ def gaussian_blur_func(kernel_size, sigma):
             return_filter[i, j] = exp
 
     return return_filter
-
-
-def wiener_filter(input_img, kernel_shape=(5, 5), sigma=2):
-
-    return
 
 
 if __name__ == "__main__":
