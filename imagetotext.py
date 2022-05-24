@@ -2,7 +2,7 @@ import pytesseract
 import numpy as np
 import cv2
 import os
-import math
+# import math
 # import matplotlib.pyplot as plt
 from textblob import Word
 import re
@@ -30,6 +30,8 @@ MASK4 = 0b00_0000_00_01_00_0
 MASK3 = 0b00_0000_00_00_10_0
 MASK2 = 0b00_0000_00_00_01_0
 MASK1 = 0b00_0000_00_00_00_1
+
+USERNOISEMASK = 0b00_0100_11_01_00_0
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
@@ -531,22 +533,6 @@ def gamma_correction(input_img, c_param=3):
     return return_img
 
 
-# Wiener filter 에 사용할 커널 사이즈의 가우시안 함수
-def gaussian_blur_func(kernel_size, sigma):
-
-    extend_value = kernel_size//2
-    return_filter = np.zeros((kernel_size, kernel_size))
-
-    for i in range(kernel_size):
-        for j in range(kernel_size):
-            up = - ((i - extend_value) ** 2 + (j - extend_value) ** 2) / (2 * (sigma ** 2))
-            exp = np.exp(up)
-            exp = exp / (2 * math.pi * (sigma ** 2))
-            return_filter[i, j] = exp
-
-    return return_filter
-
-
 def inner_opening_filter(input_img):
     print("Inner opening filter...")
     kernel = np.ones((3, 3), np.uint8)
@@ -568,7 +554,7 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
     h, w = input_img.shape
     return_img = np.zeros((h, w))
 
-    count = np.zeros(256)
+    pixel_count = np.zeros(256)
     pixel_number = h * w
     pixel_sum = 0
     user_min = 0
@@ -577,17 +563,17 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
     for i in range(h):
         for j in range(w):
             pixel_value = input_img[i, j]
-            count[pixel_value] += 1
+            pixel_count[pixel_value] += 1
 
     for i in range(256):
-        pixel_sum += count[i]
+        pixel_sum += pixel_count[i]
         if pixel_sum > (pixel_number * min_thresh_prob):
             user_min = i
             break
 
     pixel_sum = 0
     for i in range(256):
-        pixel_sum += count[i]
+        pixel_sum += pixel_count[i]
         if pixel_sum > (pixel_number * max_thresh_prob):
             user_max = i
             break
@@ -596,8 +582,8 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
         print("Error")
         user_max = 1
 
-    print(user_min)
-    print(user_max)
+    print('user min : ', user_min)
+    print('user max : ', user_max)
 
     min_value = 0
     max_value = 255
@@ -612,6 +598,60 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
                 return_img[i, j] = 255
 
     return return_img.astype(np.uint8)
+
+
+def print_all(input_mask, input_corrects, input_file_name):
+
+    print("--------------------------------------------")
+    print(input_file_name)
+    print('total word count : ', input_corrects)
+    print("Print image")
+
+    print('final mask : ', bin(correctMask))
+    print("Used filters...")
+
+    if (input_mask & MASK13) == MASK13:
+        print("First linear equalization")
+
+    if (input_mask & MASK12) == MASK12:
+        print("User equalization (SAP)")
+
+    if (input_mask & MASK11) == MASK11:
+        print("Adaptive filter")
+
+    if (input_mask & MASK10) == MASK10:
+        print("Inner Opening filter")
+
+    if (input_mask & MASK9) == MASK9:
+        print("Inner Closing filter")
+
+    if (input_mask & MASK8) == MASK8:
+        print("Median filter")
+
+    if (input_mask & MASK7) == MASK7:
+        print("Bilateral filter")
+
+    if (input_mask & MASK6) == MASK6:
+        print("Homomorphic filter")
+
+    if (input_mask & MASK5) == MASK5:
+        print("Gamma correction")
+
+    if (input_mask & MASK4) == MASK4:
+        print("User equalization (second)")
+
+    if (input_mask & MASK3) == MASK3:
+        print("Get binary")
+
+    if (input_mask & MASK2) == MASK2:
+        print("Adaptive threshold")
+
+    if (input_mask & MASK1) == MASK1:
+        print("Morphology filter")
+
+    print("--------------------------------------------")
+
+    return
 
 
 if __name__ == "__main__":
@@ -629,9 +669,11 @@ if __name__ == "__main__":
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
 
-        masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0]
+        masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
+                 USERNOISEMASK]
 
         corrects = 0
+        correctMask = 0
         for mask in masks:
             print('mask : ', bin(mask))
 
@@ -656,13 +698,15 @@ if __name__ == "__main__":
             if corrects < count:
                 result_img = filtered_img
                 corrects = count
+                correctMask = mask
 
             print('count : ', count)
+
+        print_all(correctMask, corrects, file_name)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
 
-        print("Print image")
         cv2.imshow('image', result_img)
         cv2.waitKey()
         cv2.destroyAllWindows()
@@ -670,6 +714,7 @@ if __name__ == "__main__":
         # 필터링된 이미지에서 텍스트를 추출해서 output.txt에 작성
         result.write(pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg', lang='ENG',
                                                  config='--psm 4 -c preserve_interword_spaces=1') + '\n')
+
     result.close()
     print("complete")
 
@@ -754,6 +799,22 @@ def anti_gaussian(input_img):
     morphologyFlag = False
     
     
+    
+    
+    # Wiener filter 에 사용할 커널 사이즈의 가우시안 함수
+def gaussian_blur_func(kernel_size, sigma):
+
+    extend_value = kernel_size//2
+    return_filter = np.zeros((kernel_size, kernel_size))
+
+    for i in range(kernel_size):
+        for j in range(kernel_size):
+            up = - ((i - extend_value) ** 2 + (j - extend_value) ** 2) / (2 * (sigma ** 2))
+            exp = np.exp(up)
+            exp = exp / (2 * math.pi * (sigma ** 2))
+            return_filter[i, j] = exp
+
+    return return_filter
     
     
     
