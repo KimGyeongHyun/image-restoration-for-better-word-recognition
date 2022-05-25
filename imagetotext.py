@@ -8,8 +8,6 @@ from textblob import Word
 import re
 
 # define
-binaryStandard = 170   # binary image 만들때 화소값 기준   이미지마다 다른 값 대입이 좋아보임     Eq 잘 되면 조절 필요 없을듯
-median_repeat_times = 3
 NONE = 0
 EROSION = 1
 DILATION = 2
@@ -38,17 +36,24 @@ USER_SAP_LERNING = 0b10
 MEDIAN_REP_LERANING = 0b100
 HOMO_LERANING = 0b1000
 USER_SECOND_LERNING = 0b10000
+GAMMA_LEARNING = 0b100000
+ADAPTIVE_SECOND_LERNING = 0b1000000
+MORPHOLOGY_LEARNING = 0b10000000
 
 # 변수
 adaptive_threshold_block_size = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
 adaptive_threshold_c = [-1, 0, 1, 2, 3, 4, 5]
-adaptive_threshold_block_size_best = 0
-adaptive_threshold_c_best = 0
+adaptive_threshold_block_size_best_first = 0
+adaptive_threshold_c_best_first = 0
+adaptive_threshold_block_size_best_second = 0
+adaptive_threshold_c_best_second = 0
 
 user_max = [0.5, 0.7, 0.9, 0.95]
 user_min = [0.4, 0.2, 0.1, 0.05]
 user_max_best_first = 0
 user_min_best_first = 0
+user_max_best_second = 0
+user_min_best_second = 0
 
 median_repeat_times = [1, 2, 3, 4, 5]
 median_repeat_time_best = 0
@@ -57,6 +62,11 @@ homo_cutoffs = [1, 2, 4, 8]
 homo_c = [5, 10, 20, 30]
 homo_cutoff_best = 0
 homo_c_best = 0
+
+gamma_param = [1, 2, 3, 4, 5]
+gamma_best_param = 0
+
+morphology_best_method = 0
 
 path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
 save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
@@ -67,20 +77,24 @@ count = 0
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
-def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
+def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask=0):
     global corrects
     global corrects_best
     global count
 
-    global adaptive_threshold_block_size_best
-    global adaptive_threshold_c_best
     global adaptive_threshold_block_size
     global adaptive_threshold_c
+    global adaptive_threshold_block_size_best_first
+    global adaptive_threshold_c_best_first
+    global adaptive_threshold_block_size_best_second
+    global adaptive_threshold_c_best_second
 
     global user_max
     global user_min
     global user_max_best_first
     global user_min_best_first
+    global user_max_best_second
+    global user_min_best_second
 
     global median_repeat_times
     global median_repeat_time_best
@@ -89,6 +103,11 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     global homo_c
     global homo_cutoff_best
     global homo_c_best
+
+    global gamma_param
+    global gamma_best_param
+
+    global morphology_best_method
 
     return_img = input_img.copy()
 
@@ -125,14 +144,14 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
         homomorphicFlag = False
 
     if (flag_value & MASK7) == MASK7:
-        gammaCorrectionFlag = True
-    else:
-        gammaCorrectionFlag = False
-
-    if (flag_value & MASK8) == MASK8:
         userEqualizationSecondFlag = True
     else:
         userEqualizationSecondFlag = False
+
+    if (flag_value & MASK8) == MASK8:
+        gammaCorrectionFlag = True
+    else:
+        gammaCorrectionFlag = False
 
     if (flag_value & MASK9) == MASK9:
         adaptiveThresholdFlag = True
@@ -188,7 +207,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     # 적당한 adaptive threshold를 가해서 바이너리 이미지를 얻어냄
     # 바이너리 속성에 의해 저주파가 뭉개지고 글씨가 선명하게 보임
     if blurAdaptiveThresholdFlag:
-        if (learning_mask & ADAPTIVE_LERNING) == ADAPTIVE_LERNING:
+        if (input_learning_mask & ADAPTIVE_LERNING) == ADAPTIVE_LERNING:
+            corrects = 0
             for i in range(len(adaptive_threshold_block_size)):
                 for j in range(len(adaptive_threshold_c)):
                     #########
@@ -198,9 +218,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
                     cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
 
-                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
                     # split
-                    words = adap_sentence.split()
+                    words = sentence.split()
                     # lower case
                     words = [word.lower() for word in words]
                     # remove punctuations signs
@@ -216,12 +236,15 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
                     if corrects < count:
                         return_img = filtered_img
                         corrects = count
-                        adaptive_threshold_block_size_best = adaptive_threshold_block_size[i]
-                        adaptive_threshold_c_best = adaptive_threshold_c[j]
+                        adaptive_threshold_block_size_best_first = adaptive_threshold_block_size[i]
+                        adaptive_threshold_c_best_first = adaptive_threshold_c[j]
 
                     print('block_size : ', adaptive_threshold_block_size[i])
                     print('c : ', adaptive_threshold_c[j])
                     print('count : ', count, '\r\n')
+            print('First adaptive threshold corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
         else:
             return_img = adaptive_threshold_filter(return_img)
 
@@ -241,7 +264,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     # if adaptiveFlag:
     #     return_img = adaptive_filtering(return_img, (7, 7), 180)
     if userEqualizationSAPFlag:
-        if (learning_mask & USER_SAP_LERNING) == USER_SAP_LERNING:
+        if (input_learning_mask & USER_SAP_LERNING) == USER_SAP_LERNING:
+            corrects = 0
             for i in range(len(user_max)):
                 for j in range(len(user_min)):
 
@@ -249,9 +273,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
                     cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
 
-                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
                     # split
-                    words = adap_sentence.split()
+                    words = sentence.split()
                     # lower case
                     words = [word.lower() for word in words]
                     # remove punctuations signs
@@ -273,6 +297,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
                     print('user max prob : ', user_max[i])
                     print('user min prob : ', user_min[j])
                     print('count : ', count, '\r\n')
+            print('First user equalization corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
         else:
             return_img = user_equalization(return_img, 0.2, 0.8)
 
@@ -280,7 +307,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
         return_img = inner_opening_filter(return_img)
 
     if medianFlag:
-        if (learning_mask & MEDIAN_REP_LERANING) == MEDIAN_REP_LERANING:
+        if (input_learning_mask & MEDIAN_REP_LERANING) == MEDIAN_REP_LERANING:
+            corrects = 0
             for i in range(len(median_repeat_times)):
 
                 filtered_img = return_img.copy()
@@ -289,9 +317,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
                 cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
 
-                adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
                 # split
-                words = adap_sentence.split()
+                words = sentence.split()
                 # lower case
                 words = [word.lower() for word in words]
                 # remove punctuations signs
@@ -311,6 +339,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
                 print('median repeat time : ', median_repeat_times[i])
                 print('count : ', count, '\r\n')
+            print('Median filter corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
         else:
             for i in range(3):
                 return_img = median_filter(return_img)
@@ -331,7 +362,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
         return_img = bilateral_filter(return_img)
 
     if homomorphicFlag:
-        if (learning_mask & HOMO_LERANING) == HOMO_LERANING:
+        if (input_learning_mask & HOMO_LERANING) == HOMO_LERANING:
+            corrects = 0
             for i in range(len(homo_cutoffs)):
                 for j in range(len(homo_c)):
 
@@ -339,9 +371,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
                     cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
 
-                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
                     # split
-                    words = adap_sentence.split()
+                    words = sentence.split()
                     # lower case
                     words = [word.lower() for word in words]
                     # remove punctuations signs
@@ -363,6 +395,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
                     print('cutoff : ', homo_cutoffs[i])
                     print('c : ', homo_c[j])
                     print('count : ', count, '\r\n')
+            print('Homomorphic filter corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
         else:
             return_img = HF(return_img)
 
@@ -374,12 +409,82 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     # 이유는 글자보다 노이즈의 min, max값이 크기 때문
     # user eq 로 대체
     if userEqualizationSecondFlag:
-        return_img = user_equalization(return_img)
+        if (input_learning_mask & USER_SECOND_LERNING) == USER_SECOND_LERNING:
+            corrects = 0
+            for i in range(len(user_max)):
+                for j in range(len(user_min)):
+
+                    filtered_img = user_equalization(return_img, user_min[j], user_max[i])
+
+                    cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                    sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    # split
+                    words = sentence.split()
+                    # lower case
+                    words = [word.lower() for word in words]
+                    # remove punctuations signs
+                    words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                    count = 0
+                    for word in words:
+                        result_word = Word(word)
+                        result_word = result_word.spellcheck()
+                        if len(result_word) == 1:
+                            count += 1
+
+                    if corrects < count:
+                        return_img = filtered_img
+                        corrects = count
+                        user_max_best_second = user_max[i]
+                        user_min_best_second = user_min[j]
+
+                    print('user max prob : ', user_max[i])
+                    print('user min prob : ', user_min[j])
+                    print('count : ', count, '\r\n')
+            print('Second user equalization corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
+        else:
+            return_img = user_equalization(return_img)
 
     # 검은색 글자를 뚜렷하게 해줌
 
     if gammaCorrectionFlag:
-        return_img = gamma_correction(return_img)
+        if (input_learning_mask & GAMMA_LEARNING) == GAMMA_LEARNING:
+            corrects = 0
+            for i in range(len(gamma_param)):
+                filtered_img = gamma_correction(return_img, gamma_param[i])
+
+                cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                # split
+                words = sentence.split()
+                # lower case
+                words = [word.lower() for word in words]
+                # remove punctuations signs
+                words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                count = 0
+                for word in words:
+                    result_word = Word(word)
+                    result_word = result_word.spellcheck()
+                    if len(result_word) == 1:
+                        count += 1
+
+                if corrects < count:
+                    return_img = filtered_img
+                    corrects = count
+                    gamma_best_param = gamma_param[i]
+
+                print('gamma parameter : ', gamma_param[i])
+                print('count : ', count, '\r\n')
+            print('Gamma correction corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
+        else:
+            return_img = gamma_correction(return_img)
 
     #####################################################################################################
     # binary 이미지 가져오기
@@ -395,7 +500,45 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     # if binaryFlag:
     #     return_img = get_binary_image(return_img)
     if adaptiveThresholdFlag:
-        return_img = adaptive_threshold_filter(return_img)
+        if (input_learning_mask & ADAPTIVE_SECOND_LERNING) == ADAPTIVE_SECOND_LERNING:
+            corrects = 0
+            for i in range(len(adaptive_threshold_block_size)):
+                for j in range(len(adaptive_threshold_c)):
+
+                    filtered_img = adaptive_threshold_filter(return_img, adaptive_threshold_block_size[i],
+                                                             adaptive_threshold_c[j])
+
+                    cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                    sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    # split
+                    words = sentence.split()
+                    # lower case
+                    words = [word.lower() for word in words]
+                    # remove punctuations signs
+                    words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                    count = 0
+                    for word in words:
+                        result_word = Word(word)
+                        result_word = result_word.spellcheck()
+                        if len(result_word) == 1:
+                            count += 1
+
+                    if corrects < count:
+                        return_img = filtered_img
+                        corrects = count
+                        adaptive_threshold_block_size_best_second = adaptive_threshold_block_size[i]
+                        adaptive_threshold_c_best_second = adaptive_threshold_c[j]
+
+                    print('block_size : ', adaptive_threshold_block_size[i])
+                    print('c : ', adaptive_threshold_c[j])
+                    print('count : ', count, '\r\n')
+            print('Second adaptive threshold corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
+        else:
+            return_img = adaptive_threshold_filter(return_img)
 
     #####################################################################################################
     # Morphology
@@ -406,12 +549,63 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     # 글자가 적당히 크고 얇고 끊어질 때만 사용 가능할듯  /   binary 단계에서까지 글자가 손상됨
 
     if morphologyFlag:
-        return_img = morphology(return_img)
+        if (input_learning_mask & MORPHOLOGY_LEARNING) == MORPHOLOGY_LEARNING:
+            corrects = 0
+            for i in range(6):
 
-    if corrects_best < corrects:
-        corrects_best = corrects
+                filtered_img = morphology_learning(return_img, i)
+
+                cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                # split
+                words = sentence.split()
+                # lower case
+                words = [word.lower() for word in words]
+                # remove punctuations signs
+                words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                count = 0
+                for word in words:
+                    result_word = Word(word)
+                    result_word = result_word.spellcheck()
+                    if len(result_word) == 1:
+                        count += 1
+
+                if corrects < count:
+                    return_img = filtered_img
+                    corrects = count
+                    morphology_best_method = i
+
+                print('block_size : ', adaptive_threshold_block_size[i])
+                print('c : ', adaptive_threshold_c[j])
+                print('count : ', count, '\r\n')
+            print('Second adaptive threshold corrects', corrects, '\r\n')
+            if corrects_best < corrects:
+                corrects_best = corrects
+        else:
+            return_img = morphology(return_img)
 
     return return_img
+
+
+def morphology_learning(input_img, case):
+    if case == 0:
+        return morphology(input_img, EROSION)
+    elif case == 1:
+        return morphology(input_img, DILATION)
+    elif case == 2:
+        return morphology(input_img, OPENING)
+    elif case == 3:
+        return morphology(input_img, CLOSING)
+    elif case == 4:
+        temp = morphology(input_img, OPENING)
+        return morphology(temp, CLOSING)
+    elif case == 5:
+        temp = morphology(input_img, CLOSING)
+        return morphology(temp, OPENING)
+    else:
+        return input_img
 
 
 def adaptive_threshold_filter(input_img, block_size=11, c=2):
@@ -691,50 +885,45 @@ def print_all(input_file_name, input_mask, l):
     print('final mask : ', bin(correctMask))
     print("Used filters...")
 
-    if (input_mask & MASK13) == MASK13:
-        print("First linear equalization")
+    if (input_mask & MASK1) == MASK1:
+        print("First adaptive threshold filter")
 
-    if (input_mask & MASK12) == MASK12:
-        print("User equalization (SAP)")
+    if (input_mask & MASK2) == MASK2:
+        print("First user equalization")
 
-    if (input_mask & MASK11) == MASK11:
-        print("Adaptive filter")
+    if (input_mask & MASK3) == MASK3:
+        print("Inner opening filter")
 
-    if (input_mask & MASK10) == MASK10:
-        print("Inner Opening filter")
-
-    if (input_mask & MASK9) == MASK9:
-        print("Inner Closing filter")
-
-    if (input_mask & MASK8) == MASK8:
+    if (input_mask & MASK4) == MASK4:
         print("Median filter")
 
-    if (input_mask & MASK7) == MASK7:
+    if (input_mask & MASK5) == MASK5:
         print("Bilateral filter")
 
     if (input_mask & MASK6) == MASK6:
         print("Homomorphic filter")
 
-    if (input_mask & MASK5) == MASK5:
+    if (input_mask & MASK7) == MASK7:
+        print("Second user equalization")
+
+    if (input_mask & MASK8) == MASK8:
         print("Gamma correction")
 
-    if (input_mask & MASK4) == MASK4:
-        print("User equalization (second)")
+    if (input_mask & MASK9) == MASK9:
+        print("Second adaptive threshold filter")
 
-    if (input_mask & MASK3) == MASK3:
-        print("Get binary")
-
-    if (input_mask & MASK2) == MASK2:
-        print("Adaptive threshold")
-
-    if (input_mask & MASK1) == MASK1:
+    if (input_mask & MASK10) == MASK10:
         print("Morphology filter")
 
+    print('\r\nLearning filters...')
+
     if (l & ADAPTIVE_LERNING) == ADAPTIVE_LERNING:
-        print('Adaptive best block size : ', adaptive_threshold_block_size_best)
-        print('Adaptive best c : ', adaptive_threshold_c_best)
+        print('First adaptive threshold filter')
+        print('Adaptive best block size : ', adaptive_threshold_block_size_best_first)
+        print('Adaptive best c : ', adaptive_threshold_c_best_first)
 
     if (l & USER_SAP_LERNING) == USER_SAP_LERNING:
+        print('First user eq')
         print('User best max prob : ', user_max_best_first)
         print('User best min prob : ', user_min_best_first)
 
@@ -744,6 +933,33 @@ def print_all(input_file_name, input_mask, l):
     if (l & HOMO_LERANING) == HOMO_LERANING:
         print('Homomorphic best cutoff : ', homo_cutoff_best)
         print('best c : ', homo_c_best)
+
+    if (l & USER_SECOND_LERNING) == USER_SECOND_LERNING:
+        print('Second user eq')
+        print('User best max prob : ', user_max_best_second)
+        print('User best min prob : ', user_min_best_second)
+
+    if (l & GAMMA_LEARNING) == GAMMA_LEARNING:
+        print('Best gamma parameter : ', gamma_best_param)
+
+    if (l & ADAPTIVE_SECOND_LERNING) == ADAPTIVE_SECOND_LERNING:
+        print('Second adaptive threshold filter')
+        print('Adaptive best block size : ', adaptive_threshold_block_size_best_second)
+        print('Adaptive best c : ', adaptive_threshold_c_best_second)
+
+    if (l & MORPHOLOGY_LEARNING) == MORPHOLOGY_LEARNING:
+        if morphology_best_method == 0:
+            print('Erosion')
+        elif morphology_best_method == 1:
+            print('Dilation')
+        elif morphology_best_method == 2:
+            print('Opening')
+        elif morphology_best_method == 3:
+            print('Closing')
+        elif morphology_best_method == 4:
+            print('Opening and closing')
+        elif morphology_best_method == 5:
+            print('Closing and opening')
 
     print("--------------------------------------------")
 
@@ -766,15 +982,15 @@ if __name__ == "__main__":
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
         #       USERNOISEMASK_1]
 
-        masks = [0b11]
-        learning_mask = 0b11
+        masks = [0b0101010101]
+        learning_mask = 0b1
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', mask)
 
             result_img = image_filter(img, mask, learning_mask)
 
-        print_all(file_name, correctMask, learning_mask)
+            print_all(file_name, mask, learning_mask)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
