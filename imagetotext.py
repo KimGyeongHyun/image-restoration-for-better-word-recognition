@@ -15,9 +15,6 @@ OPENING = 3
 CLOSING = 4
 
 # masking
-MASK13 = 0b10_0000_00_00_00_0
-MASK12 = 0b01_0000_00_00_00_0
-MASK11 = 0b00_1000_00_00_00_0
 MASK10 = 0b00_0100_00_00_00_0
 MASK9 = 0b00_0010_00_00_00_0
 MASK8 = 0b00_0001_00_00_00_0
@@ -110,6 +107,7 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
     global morphology_best_method
 
     return_img = input_img.copy()
+    corrects_best = 0
 
     # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
 
@@ -875,11 +873,12 @@ def morphology(input_img, method=0, k_size=3):
 
 
 # 수정 필요
-def print_all(input_file_name, input_mask, l):
+def print_all(input_file_name, input_mask, l, input_count):
 
     print("--------------------------------------------")
     print(input_file_name)
-    print('total word count : ', corrects)
+    print('corrects_best : ', corrects_best)
+    print('total words count : ', input_count)
     print("Print image")
 
     print('final mask : ', bin(correctMask))
@@ -971,9 +970,10 @@ if __name__ == "__main__":
     file_list = os.listdir(path_dir)
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     result = open(save_dir + '\\output.txt', 'w', encoding='UTF-8')
+    result2 = open(save_dir + '\\final.txt', 'w', encoding='UTF-8')
 
     for file_name in file_list:
-        print(file_name)
+        print('Start filtering -> ', file_name)
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
         result_img = img.copy()
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
@@ -982,15 +982,30 @@ if __name__ == "__main__":
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
         #       USERNOISEMASK_1]
 
-        masks = [0b0101010101]
-        learning_mask = 0b1
+        masks = [0b0000000001]
+        learning_mask = 0b0
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', mask)
 
             result_img = image_filter(img, mask, learning_mask)
 
-            print_all(file_name, mask, learning_mask)
+            sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+            # split
+            words = sentence.split()
+            # lower case
+            words = [word.lower() for word in words]
+            # remove punctuations signs
+            words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+            count = 0
+            for word in words:
+                result_word = Word(word)
+                result_word = result_word.spellcheck()
+                if len(result_word) == 1:
+                    count += 1
+
+            print_all(file_name, mask, learning_mask, count)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
@@ -1000,7 +1015,7 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
 
         # 필터링된 이미지에서 텍스트를 추출해서 output.txt에 작성
-        result.write(pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg', lang='ENG',
+        result2.write(pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg', lang='ENG',
                                                  config='--psm 4 -c preserve_interword_spaces=1') + '\n')
 
     result.close()
