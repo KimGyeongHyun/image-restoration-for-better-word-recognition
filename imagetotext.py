@@ -36,6 +36,8 @@ USERNOISEMASK_1 = 0b00_0100_11_01_00_0
 ADAPTIVE_LERNING = 0b1
 USER_SAP_LERNING = 0b10
 MEDIAN_REP_LERANING = 0b100
+HOMO_LERANING = 0b1000
+USER_SECOND_LERNING = 0b10000
 
 # 변수
 adaptive_threshold_block_size = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
@@ -45,11 +47,16 @@ adaptive_threshold_c_best = 0
 
 user_max = [0.5, 0.7, 0.9, 0.95]
 user_min = [0.4, 0.2, 0.1, 0.05]
-user_max_best = 0
-user_min_best = 0
+user_max_best_first = 0
+user_min_best_first = 0
 
 median_repeat_times = [1, 2, 3, 4, 5]
 median_repeat_time_best = 0
+
+homo_cutoffs = [1, 2, 4, 8]
+homo_c = [5, 10, 20, 30]
+homo_cutoff_best = 0
+homo_c_best = 0
 
 path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
 save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
@@ -72,37 +79,42 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
     global user_max
     global user_min
-    global user_max_best
-    global user_min_best
+    global user_max_best_first
+    global user_min_best_first
 
     global median_repeat_times
     global median_repeat_time_best
+
+    global homo_cutoffs
+    global homo_c
+    global homo_cutoff_best
+    global homo_c_best
 
     return_img = input_img.copy()
 
     # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
 
-    if (flag_value & MASK12) == MASK12:
+    if (flag_value & MASK1) == MASK1:
         blurAdaptiveThresholdFlag = True
     else:
         blurAdaptiveThresholdFlag = False
 
-    if (flag_value & MASK13) == MASK13:
+    if (flag_value & MASK2) == MASK2:
         userEqualizationSAPFlag = True
     else:
         userEqualizationSAPFlag = False
 
-    if (flag_value & MASK10) == MASK10:
+    if (flag_value & MASK3) == MASK3:
         innerOpeningFlag = True
     else:
         innerOpeningFlag = False
 
-    if (flag_value & MASK8) == MASK8:
+    if (flag_value & MASK4) == MASK4:
         medianFlag = True
     else:
         medianFlag = False
 
-    if (flag_value & MASK7) == MASK7:
+    if (flag_value & MASK5) == MASK5:
         bilateralFilterFlag = True
     else:
         bilateralFilterFlag = False
@@ -112,22 +124,22 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     else:
         homomorphicFlag = False
 
-    if (flag_value & MASK5) == MASK5:
+    if (flag_value & MASK7) == MASK7:
         gammaCorrectionFlag = True
     else:
         gammaCorrectionFlag = False
 
-    if (flag_value & MASK4) == MASK4:
+    if (flag_value & MASK8) == MASK8:
         userEqualizationSecondFlag = True
     else:
         userEqualizationSecondFlag = False
 
-    if (flag_value & MASK2) == MASK2:
+    if (flag_value & MASK9) == MASK9:
         adaptiveThresholdFlag = True
     else:
         adaptiveThresholdFlag = False
 
-    if (flag_value & MASK1) == MASK1:
+    if (flag_value & MASK10) == MASK10:
         morphologyFlag = True
     else:
         morphologyFlag = False
@@ -255,8 +267,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
                     if corrects < count:
                         return_img = filtered_img
                         corrects = count
-                        user_max_best = user_max[i]
-                        user_min_best = user_min[j]
+                        user_max_best_first = user_max[i]
+                        user_min_best_first = user_min[j]
 
                     print('user max prob : ', user_max[i])
                     print('user min prob : ', user_min[j])
@@ -317,8 +329,42 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
 
     if bilateralFilterFlag:
         return_img = bilateral_filter(return_img)
+
     if homomorphicFlag:
-        return_img = HF(return_img)
+        if (learning_mask & HOMO_LERANING) == HOMO_LERANING:
+            for i in range(len(homo_cutoffs)):
+                for j in range(len(homo_c)):
+
+                    filtered_img = HF(return_img, homo_cutoffs[i], homo_c[j])
+
+                    cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    # split
+                    words = adap_sentence.split()
+                    # lower case
+                    words = [word.lower() for word in words]
+                    # remove punctuations signs
+                    words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                    count = 0
+                    for word in words:
+                        result_word = Word(word)
+                        result_word = result_word.spellcheck()
+                        if len(result_word) == 1:
+                            count += 1
+
+                    if corrects < count:
+                        return_img = filtered_img
+                        corrects = count
+                        homo_cutoff_best = homo_cutoffs[i]
+                        homo_c_best = homo_c[j]
+
+                    print('cutoff : ', homo_cutoffs[i])
+                    print('c : ', homo_c[j])
+                    print('count : ', count, '\r\n')
+        else:
+            return_img = HF(return_img)
 
     #####################################################################################################
     # 두번째 Eq
@@ -465,7 +511,7 @@ def bilateral_filter(input_img):
     return return_img
 
 
-def HF(input_img, cutoff=2, high=1.2, low=0.9, c=20):  # Homomorphic filter
+def HF(input_img, cutoff=2, c=20, high=1.2, low=0.9):  # Homomorphic filter
     print("Homomorphic filter...")
     m, n = input_img.shape
 
@@ -635,7 +681,7 @@ def morphology(input_img, method=0, k_size=3):
 
 
 # 수정 필요
-def print_all(input_file_name, input_mask):
+def print_all(input_file_name, input_mask, l):
 
     print("--------------------------------------------")
     print(input_file_name)
@@ -684,16 +730,20 @@ def print_all(input_file_name, input_mask):
     if (input_mask & MASK1) == MASK1:
         print("Morphology filter")
 
-    if adaptive_threshold_block_size_best != 0:
+    if (l & ADAPTIVE_LERNING) == ADAPTIVE_LERNING:
         print('Adaptive best block size : ', adaptive_threshold_block_size_best)
         print('Adaptive best c : ', adaptive_threshold_c_best)
 
-    if user_min_best != 0:
-        print('User best max prob : ', user_max_best)
-        print('User best min prob : ', user_min_best)
+    if (l & USER_SAP_LERNING) == USER_SAP_LERNING:
+        print('User best max prob : ', user_max_best_first)
+        print('User best min prob : ', user_min_best_first)
 
-    if median_repeat_time_best != 0:
+    if (l & MEDIAN_REP_LERANING) == MEDIAN_REP_LERANING:
         print('Median best repeat times : ', median_repeat_time_best)
+
+    if (l & HOMO_LERANING) == HOMO_LERANING:
+        print('Homomorphic best cutoff : ', homo_cutoff_best)
+        print('best c : ', homo_c_best)
 
     print("--------------------------------------------")
 
@@ -716,14 +766,15 @@ if __name__ == "__main__":
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
         #       USERNOISEMASK_1]
 
-        masks = [MASK8]
+        masks = [0b11]
+        learning_mask = 0b11
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
-            print('mask : ', bin(mask))
+            print('mask : ', mask)
 
-            result_img = image_filter(img, mask, 0b100)
+            result_img = image_filter(img, mask, learning_mask)
 
-        print_all(file_name, correctMask)
+        print_all(file_name, correctMask, learning_mask)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
