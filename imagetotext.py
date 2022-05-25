@@ -2,7 +2,7 @@ import pytesseract
 import numpy as np
 import cv2
 import os
-# import math
+import math
 # import matplotlib.pyplot as plt
 from textblob import Word
 import re
@@ -31,39 +31,30 @@ MASK3 = 0b00_0000_00_00_10_0
 MASK2 = 0b00_0000_00_00_01_0
 MASK1 = 0b00_0000_00_00_00_1
 
-USERNOISEMASK = 0b00_0100_11_01_00_0
+USERNOISEMASK_1 = 0b00_0100_11_01_00_0
+
+ADAPTIVE_LERNING = 0b1
+
+# 변수
+adaptive_threshold_block_size = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
+adaptive_threshold_c = [-1, 0, 1, 2, 3, 4, 5]
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
-def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3):
+def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, lerning_mask=0, adaptive_threshold=11, adaptive_c=2):
     return_img = input_img.copy()
 
     # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
 
-    if (flag_value & MASK13) == MASK13:
-        firstLinearHEFlag = True
-    else:
-        firstLinearHEFlag = False
-
     if (flag_value & MASK12) == MASK12:
-        userEqualizationFirstSAPFlag = True
+        blurAdaptiveThresholdFlag = True
     else:
-        userEqualizationFirstSAPFlag = False
-
-    if (flag_value & MASK11) == MASK11:
-        adaptiveFlag = True
-    else:
-        adaptiveFlag = False
+        blurAdaptiveThresholdFlag = False
 
     if (flag_value & MASK10) == MASK10:
         innerOpeningFlag = True
     else:
         innerOpeningFlag = False
-
-    if (flag_value & MASK9) == MASK9:
-        innerClosingFlag = True
-    else:
-        innerClosingFlag = False
 
     if (flag_value & MASK8) == MASK8:
         medianFlag = True
@@ -89,11 +80,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
         userEqualizationSecondFlag = True
     else:
         userEqualizationSecondFlag = False
-
-    if (flag_value & MASK3) == MASK3:
-        binaryFlag = True
-    else:
-        binaryFlag = False
 
     if (flag_value & MASK2) == MASK2:
         adaptiveThresholdFlag = True
@@ -144,26 +130,15 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
     """
 
     #####################################################################################################
-    # 처음 Eq
+    # blur 제거
 
-    # 처음 Histogram Equalization 내장함수 사용시 글자가 두꺼워지며 부정적인 영향을 줌
-    # 선형 HQ 사용
-
-    # user eq 의 경우 값만 잘 넣으면 SAP 가 제거됨
-
-    if firstLinearHEFlag:
-        return_img = set_value_to_min_max(return_img)
-    if userEqualizationFirstSAPFlag:
-        return_img = user_equalization(return_img)
+    # 적당한 adaptive threshold를 가해서 바이너리 이미지를 얻어냄
+    # 바이너리 속성에 의해 저주파가 뭉개지고 글씨가 선명하게 보임
+    if blurAdaptiveThresholdFlag:
+        return_img = adaptive_threshold_filter(return_img, adaptive_threshold, adaptive_c)
 
     #####################################################################################################
-    # 초반 노이즈 제거
-
-    # gaussian noise 있을 경우 사용    /   잘못 사용시 글씨가 blur 처리 됨
-    # noise_var = 100 일 때도 글자가 배경색이랑 비슷하면 blur 처리 됨
-    # noise_var 을 줄여 글자가 blur 처리 안 되게 해야 함
-    # gaussian noise를 사용자가 인지하고 입력하게끔 만들 예정
-    # 아니면 gaussian만 반대로 하는 함수를 만들어야 할듯
+    # Salt and pepper noise 제거
 
     # inner opening 의 경우 SAP는 제거가 되지만 interpolation 필요함
     # 가우시안 노이즈의 경우 격자무늬가 보이지만 어느정도 커버가 되는 것을 확인
@@ -175,15 +150,13 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
     # 사실 큰 글자면 salt and pepper noise 는 있으나 마나일듯
     # 얼마나 반복할 건지
 
-    if adaptiveFlag:
-        return_img = adaptive_filtering(return_img, (7, 7), 180)
+    # if adaptiveFlag:
+    #     return_img = adaptive_filtering(return_img, (7, 7), 180)
     if innerOpeningFlag:
         return_img = inner_opening_filter(return_img)
-    if innerClosingFlag:
-        return_img = inner_closing_filter(return_img)
     if medianFlag:
         for i in range(median_repeat_times):
-            return_img = median_filter(return_img, 3)
+            return_img = median_filter(return_img)
 
     #####################################################################################################
     # 이후 노이즈 제거
@@ -200,7 +173,7 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
     if bilateralFilterFlag:
         return_img = bilateral_filter(return_img)
     if homomorphicFlag:
-        return_img = HF(return_img, cutoff=2, high=1.2, low=0.9, c=20)
+        return_img = HF(return_img)
 
     #####################################################################################################
     # 두번째 Eq
@@ -228,8 +201,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
     # salt and pepper의 경우 글자는 잘 보이지만 나머지 부분에 노이즈 심해짐 (글자 잘 보임) / 인식을 못함
     # 가우시안 노이즈의 경우에만 잘 되지 않음
 
-    if binaryFlag:
-        return_img = get_binary_image(return_img)
+    # if binaryFlag:
+    #     return_img = get_binary_image(return_img)
     if adaptiveThresholdFlag:
         return_img = adaptive_threshold_filter(return_img)
 
@@ -242,49 +215,12 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, method=0, k_size=3)
     # 글자가 적당히 크고 얇고 끊어질 때만 사용 가능할듯  /   binary 단계에서까지 글자가 손상됨
 
     if morphologyFlag:
-        return_img = morphology(return_img, method, k_size)
+        return_img = morphology(return_img)
 
     return return_img
 
 
-# 테두리 패딩해주는 함수
-def Padding(input_img, filter_size):
-    iw, ih = input_img.shape
-
-    fw, fh = filter_size
-    pw, ph = fw // 2, fh // 2  # 소수점 날림
-
-    out = np.zeros((iw + fw - 1, ih + fh - 1))
-    out[pw:pw + iw, ph:ph + ih] = input_img
-
-    return out
-
-
-def adaptive_filtering(input_img, filter_size, noise_var):
-    print("Adaptive filter...")
-    iw, ih = input_img.shape
-    fw, fh = filter_size
-
-    image_padded = Padding(input_img, (fw, fh))
-    out = np.zeros((iw, ih))
-
-    for i in range(fw // 2, iw + fw // 2):
-        for j in range(fh // 2, ih + fh // 2):
-            local = image_padded[i - fw // 2:i + fw // 2 + 1, j - fh // 2:j + fh // 2 + 1]
-            local_mean = np.mean(local)
-            local_var = np.var(local) + 1e-8  # 0 나누기 대비용 보완 조금만 더함
-
-            if noise_var <= local_var:
-                ratio = noise_var / local_var
-            else:
-                ratio = 1  # 원래 1위로 안 올라감
-            out[i - fw // 2, j - fw // 2] = image_padded[i, j] - ratio * (image_padded[i, j] - local_mean)
-
-    out = out.astype(np.uint8)
-    return out
-
-
-def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
+def HF(input_img, cutoff=2, high=1.2, low=0.9, c=20):  # Homomorphic filter
     print("Homomorphic filter...")
     m, n = input_img.shape
 
@@ -312,7 +248,6 @@ def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
     # plt.imshow(dft2d.real, cmap='gray'), plt.axis('off')
     # plt.show()
 
-    ##############################################
     # gamma h : high, gamma L : low
     # d0 : cutoff
     h, d = np.zeros((p, q)), np.zeros((p, q))
@@ -372,7 +307,7 @@ def HF(input_img, cutoff, low, high, c):  # Homomorphic filter
     return idft2d
 
 
-def morphology(input_img, method, k_size=3):
+def morphology(input_img, method=0, k_size=3):
     """
     :param input_img: input_img image
     :param method: 1(erosion), 2(dilation), 3(opening), 4(closing)
@@ -439,34 +374,19 @@ def morphology(input_img, method, k_size=3):
     return morp_result
 
 
-def get_binary_image(input_img):
-    print("Get binary image...")
-    return_img = input_img.copy()
-    h, w = input_img.shape
+def adaptive_threshold_filter(input_img, block_size=11, c=2):
 
-    for i in range(h):
-        for j in range(w):
-            if input_img[i, j] < binaryStandard:
-                return_img[i, j] = 0
-            else:
-                return_img[i, j] = 255
-
-    # cv2.imshow('binary', return_img)
-    # cv2.waitKey()
-    # cv2.destroyAllWindows()
-
-    return return_img.astype(np.uint8)
-
-
-def adaptive_threshold_filter(input_img):
     print("Adaptive threshold filtering...")
     return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY, 11, 2)
+                                       cv2.THRESH_BINARY, block_size, c)
+
+    print("block size : ", block_size)
+    print("block size : ", c)
 
     return return_img
 
 
-def median_filter(input_img, kernel_size):
+def median_filter(input_img, kernel_size=3):
     print("median filter...")
     return_img = input_img.copy()
     m, n = input_img.shape
@@ -496,28 +416,6 @@ def bilateral_filter(input_img):
     return return_img
 
 
-def set_value_to_min_max(input_img):
-    print("HQ...")
-    return_img = input_img.copy()
-    h, w = input_img.shape
-    min_value = 0
-    max_value = 255
-    img_min = np.min(input_img)  # 100
-    img_max = np.max(input_img)  # 200
-
-    # 예외처리
-    if img_max - img_min == 0:
-        return input_img
-
-    for i in range(h):
-        for j in range(w):
-            return_img[i, j] = (input_img[i, j] - img_min) * ((max_value - min_value) / (img_max - img_min))
-
-    return_img = return_img.astype(np.uint8)
-
-    return return_img
-
-
 def gamma_correction(input_img, c_param=3):
     print("Gamma correction...")
     normalized_img = input_img/255
@@ -537,14 +435,6 @@ def inner_opening_filter(input_img):
     print("Inner opening filter...")
     kernel = np.ones((3, 3), np.uint8)
     return_img = cv2.morphologyEx(input_img, cv2.MORPH_OPEN, kernel)
-
-    return return_img
-
-
-def inner_closing_filter(input_img):
-    print("Inner opening filter...")
-    kernel = np.ones((3, 3), np.uint8)
-    return_img = cv2.morphologyEx(input_img, cv2.MORPH_CLOSE, kernel)
 
     return return_img
 
@@ -600,7 +490,9 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
     return return_img.astype(np.uint8)
 
 
-def print_all(input_mask, input_corrects, input_file_name):
+# 수정 필요
+def print_all(input_mask, input_corrects, input_file_name, input_adaptive_th_block_size_best=0,
+              input_adaptive_th_c_best=0):
 
     print("--------------------------------------------")
     print(input_file_name)
@@ -649,6 +541,10 @@ def print_all(input_mask, input_corrects, input_file_name):
     if (input_mask & MASK1) == MASK1:
         print("Morphology filter")
 
+    if input_adaptive_th_block_size_best != 0:
+        print('Adaptive best block size : ', input_adaptive_th_block_size_best)
+        print('Adaptive best c : ', input_adaptive_th_c_best)
+
     print("--------------------------------------------")
 
     return
@@ -669,40 +565,52 @@ if __name__ == "__main__":
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
 
-        masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
-                 USERNOISEMASK]
+        # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
+        #         USERNOISEMASK_1]
+
+        masks = [MASK12]
 
         corrects = 0
         correctMask = 0
+        adaptive_threshold_block_size_best = 0
+        adaptive_threshold_c_best = 0
+
         for mask in masks:
-            print('mask : ', bin(mask))
+            if ADAPTIVE_LERNING:
+                for i in range(len(adaptive_threshold_block_size)):
+                    for j in range(len(adaptive_threshold_c)):
+                        print('mask : ', bin(mask))
 
-            filtered_img = image_filter(img, mask)
-            cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+                        filtered_img = image_filter(img, mask, 1, adaptive_threshold_block_size[i],
+                                                    adaptive_threshold_c[j])
 
-            sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
-            # split
-            words = sentence.split()
-            # lower case
-            words = [word.lower() for word in words]
-            # remove punctuations signs
-            words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+                        cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
 
-            count = 0
-            for word in words:
-                result_word = Word(word)
-                result_word = result_word.spellcheck()
-                if len(result_word) == 1:
-                    count += 1
+                        sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                        # split
+                        words = sentence.split()
+                        # lower case
+                        words = [word.lower() for word in words]
+                        # remove punctuations signs
+                        words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
 
-            if corrects < count:
-                result_img = filtered_img
-                corrects = count
-                correctMask = mask
+                        count = 0
+                        for word in words:
+                            result_word = Word(word)
+                            result_word = result_word.spellcheck()
+                            if len(result_word) == 1:
+                                count += 1
 
-            print('count : ', count)
+                        if corrects < count:
+                            result_img = filtered_img
+                            corrects = count
+                            correctMask = mask
+                            adaptive_threshold_block_size_best = adaptive_threshold_block_size[i]
+                            adaptive_threshold_c_best = adaptive_threshold_c[j]
 
-        print_all(correctMask, corrects, file_name)
+                        print('count : ', count)
+
+        print_all(correctMask, corrects, file_name, adaptive_threshold_block_size_best, adaptive_threshold_c_best)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
@@ -780,7 +688,7 @@ def anti_gaussian(input_img):
     # 아래 순서로 필터링 진행
 
     firstLinearHEFlag = False
-    userEqualizationFirstSAPFlag = False
+    blurAdaptiveThresholdFlag = False
 
     adaptiveFlag = False
     innerOpeningFlag = True
