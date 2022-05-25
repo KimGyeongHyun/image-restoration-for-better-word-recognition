@@ -248,8 +248,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                         adaptive_threshold_block_size_best_first = adaptive_threshold_block_size[i]
                         adaptive_threshold_c_best_first = adaptive_threshold_c[j]
 
-                    print('block_size : ', adaptive_threshold_block_size[i])
-                    print('c : ', adaptive_threshold_c[j])
                     print('count : ', count, '\r\n')
             print('First adaptive threshold corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -303,8 +301,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                         user_max_best_first = user_max[i]
                         user_min_best_first = user_min[j]
 
-                    print('user max prob : ', user_max[i])
-                    print('user min prob : ', user_min[j])
                     print('count : ', count, '\r\n')
             print('First user equalization corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -346,7 +342,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                     corrects = count
                     median_repeat_time_best = i
 
-                print('median repeat time : ', median_repeat_times[i])
                 print('count : ', count, '\r\n')
             print('Median filter corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -401,8 +396,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                         homo_cutoff_best = homo_cutoffs[i]
                         homo_c_best = homo_c[j]
 
-                    print('cutoff : ', homo_cutoffs[i])
-                    print('c : ', homo_c[j])
                     print('count : ', count, '\r\n')
             print('Homomorphic filter corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -448,8 +441,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                         user_max_best_second = user_max[i]
                         user_min_best_second = user_min[j]
 
-                    print('user max prob : ', user_max[i])
-                    print('user min prob : ', user_min[j])
                     print('count : ', count, '\r\n')
             print('Second user equalization corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -487,7 +478,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                     corrects = count
                     gamma_best_param = gamma_param[i]
 
-                print('gamma parameter : ', gamma_param[i])
                 print('count : ', count, '\r\n')
             print('Gamma correction corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -540,8 +530,6 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                         adaptive_threshold_block_size_best_second = adaptive_threshold_block_size[i]
                         adaptive_threshold_c_best_second = adaptive_threshold_c[j]
 
-                    print('block_size : ', adaptive_threshold_block_size[i])
-                    print('c : ', adaptive_threshold_c[j])
                     print('count : ', count, '\r\n')
             print('Second adaptive threshold corrects', corrects, '\r\n')
             if corrects_best < corrects:
@@ -586,10 +574,8 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, input_learning_mask
                     corrects = count
                     morphology_best_method = i
 
-                print('block_size : ', adaptive_threshold_block_size[i])
-                print('c : ', adaptive_threshold_c[j])
                 print('count : ', count, '\r\n')
-            print('Second adaptive threshold corrects', corrects, '\r\n')
+            print('Morphology filter corrects', corrects, '\r\n')
             if corrects_best < corrects:
                 corrects_best = corrects
         else:
@@ -622,6 +608,8 @@ def adaptive_threshold_filter(input_img, block_size=11, c=2):
     print("Adaptive threshold filtering...")
     return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY, block_size, c)
+    print('block_size : ', block_size)
+    print('c : ', c)
 
     return return_img
 
@@ -655,11 +643,13 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
             user_max_pixel_val = i
             break
 
-    if user_max_pixel_val == user_min_pixel_val:
-        return np.zeros((h, w))
-
     print('user max pixel value: ', user_max_pixel_val)
     print('user min pixel value: ', user_min_pixel_val)
+    print('user max prob : ', max_thresh_prob)
+    print('user min prob : ', min_thresh_prob)
+
+    if user_max_pixel_val == user_min_pixel_val:
+        return np.zeros((h, w))
 
     min_value = 0
     max_value = 255
@@ -716,6 +706,9 @@ def bilateral_filter(input_img):
 
 def HF(input_img, cutoff=2, c=20, high=1.2, low=0.9):  # Homomorphic filter
     print("Homomorphic filter...")
+    print('cutoff : ', cutoff)
+    print('c : ', c)
+
     m, n = input_img.shape
 
     # Zero padding
@@ -803,6 +796,7 @@ def HF(input_img, cutoff=2, c=20, high=1.2, low=0.9):  # Homomorphic filter
 
 def gamma_correction(input_img, c_param=3):
     print("Gamma correction...")
+    print('gamma parameter : ', c_param)
     normalized_img = input_img/255
     h, w = input_img.shape
     return_img = np.zeros((h, w))
@@ -993,8 +987,8 @@ if __name__ == "__main__":
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
         #       USERNOISEMASK_1]
 
-        masks = [(1 << FIRST_USER_EQUALIZATION) | (1 << GAMMA_CORRECTION)]
-        learning_mask = 0b0
+        masks = [(1 << FIRST_USER_EQUALIZATION) | (1 << GAMMA_CORRECTION), 0b1111111111]
+        learning_mask = 0b1111111111
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', mask)
@@ -1016,7 +1010,7 @@ if __name__ == "__main__":
                 if len(result_word) == 1:
                     count += 1
 
-            print_all(file_name, mask, learning_mask, count)
+        print_all(file_name, mask, learning_mask, count)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
