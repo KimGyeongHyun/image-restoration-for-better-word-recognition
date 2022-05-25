@@ -2,7 +2,7 @@ import pytesseract
 import numpy as np
 import cv2
 import os
-import math
+# import math
 # import matplotlib.pyplot as plt
 from textblob import Word
 import re
@@ -38,10 +38,28 @@ ADAPTIVE_LERNING = 0b1
 # 변수
 adaptive_threshold_block_size = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
 adaptive_threshold_c = [-1, 0, 1, 2, 3, 4, 5]
+adaptive_threshold_block_size_best = 0
+adaptive_threshold_c_best = 0
+
+path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
+save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
+corrects = 0
+corrects_best = 0
+correctMask = 0
+count = 0
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
-def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, lerning_mask=0, adaptive_threshold=11, adaptive_c=2):
+def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
+    global corrects
+    global corrects_best
+    global count
+
+    global adaptive_threshold_block_size_best
+    global adaptive_threshold_c_best
+    global adaptive_threshold_block_size
+    global adaptive_threshold_c
+
     return_img = input_img.copy()
 
     # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
@@ -135,7 +153,43 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, lerning_mask=0, ada
     # 적당한 adaptive threshold를 가해서 바이너리 이미지를 얻어냄
     # 바이너리 속성에 의해 저주파가 뭉개지고 글씨가 선명하게 보임
     if blurAdaptiveThresholdFlag:
-        return_img = adaptive_threshold_filter(return_img, adaptive_threshold, adaptive_c)
+        if ADAPTIVE_LERNING:
+            for i in range(len(adaptive_threshold_block_size)):
+                for j in range(len(adaptive_threshold_c)):
+                    #########
+
+                    filtered_img = adaptive_threshold_filter(return_img, adaptive_threshold_block_size[i],
+                                                             adaptive_threshold_c[j])
+
+                    cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    # split
+                    adap_words = adap_sentence.split()
+                    # lower case
+                    adap_words = [word.lower() for word in adap_words]
+                    # remove punctuations signs
+                    adap_words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in adap_words]
+
+                    count = 0
+                    for word in adap_words:
+                        result_word = Word(word)
+                        result_word = result_word.spellcheck()
+                        if len(result_word) == 1:
+                            count += 1
+
+                    if corrects < count:
+                        return_img = filtered_img
+                        corrects = count
+                        adaptive_threshold_block_size_best = adaptive_threshold_block_size[i]
+                        adaptive_threshold_c_best = adaptive_threshold_c[j]
+
+                    print('block_size : ', adaptive_threshold_block_size[i])
+                    print('c : ', adaptive_threshold_c[j])
+                    print('count : ', count)
+
+        else:
+            return_img = adaptive_threshold_filter(return_img)
 
     #####################################################################################################
     # Salt and pepper noise 제거
@@ -216,6 +270,9 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, lerning_mask=0, ada
 
     if morphologyFlag:
         return_img = morphology(return_img)
+
+    if corrects_best < corrects:
+        corrects_best = corrects
 
     return return_img
 
@@ -380,9 +437,6 @@ def adaptive_threshold_filter(input_img, block_size=11, c=2):
     return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY, block_size, c)
 
-    print("block size : ", block_size)
-    print("block size : ", c)
-
     return return_img
 
 
@@ -491,12 +545,11 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
 
 
 # 수정 필요
-def print_all(input_mask, input_corrects, input_file_name, input_adaptive_th_block_size_best=0,
-              input_adaptive_th_c_best=0):
+def print_all(input_file_name, input_mask):
 
     print("--------------------------------------------")
     print(input_file_name)
-    print('total word count : ', input_corrects)
+    print('total word count : ', corrects)
     print("Print image")
 
     print('final mask : ', bin(correctMask))
@@ -541,9 +594,9 @@ def print_all(input_mask, input_corrects, input_file_name, input_adaptive_th_blo
     if (input_mask & MASK1) == MASK1:
         print("Morphology filter")
 
-    if input_adaptive_th_block_size_best != 0:
-        print('Adaptive best block size : ', input_adaptive_th_block_size_best)
-        print('Adaptive best c : ', input_adaptive_th_c_best)
+    if adaptive_threshold_block_size_best != 0:
+        print('Adaptive best block size : ', adaptive_threshold_block_size_best)
+        print('Adaptive best c : ', adaptive_threshold_c_best)
 
     print("--------------------------------------------")
 
@@ -552,65 +605,28 @@ def print_all(input_mask, input_corrects, input_file_name, input_adaptive_th_blo
 
 if __name__ == "__main__":
 
-    # 이미지를 읽어올 주소
-    path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
-    # 변환된 이미지를 저장하고 텍스트를 추출해서 저장할 주소
-    save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
     file_list = os.listdir(path_dir)
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     result = open(save_dir + '\\output.txt', 'w', encoding='UTF-8')
 
     for file_name in file_list:
+        print(file_name)
         img = cv2.imread(path_dir + '\\' + file_name, cv2.IMREAD_GRAYSCALE)
+        result_img = img.copy()
         # img 변수 뒤에 다른 변수 없으면 morphology filter 수행 금지
         # 필터링된 이미지를 result_img에 저장하고 cv2로 출력
 
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
-        #         USERNOISEMASK_1]
+        #       USERNOISEMASK_1]
 
         masks = [MASK12]
 
-        corrects = 0
-        correctMask = 0
-        adaptive_threshold_block_size_best = 0
-        adaptive_threshold_c_best = 0
+        for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
+            print('mask : ', bin(mask))
 
-        for mask in masks:
-            if ADAPTIVE_LERNING:
-                for i in range(len(adaptive_threshold_block_size)):
-                    for j in range(len(adaptive_threshold_c)):
-                        print('mask : ', bin(mask))
+            result_img = image_filter(img, mask)
 
-                        filtered_img = image_filter(img, mask, 1, adaptive_threshold_block_size[i],
-                                                    adaptive_threshold_c[j])
-
-                        cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
-
-                        sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
-                        # split
-                        words = sentence.split()
-                        # lower case
-                        words = [word.lower() for word in words]
-                        # remove punctuations signs
-                        words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
-
-                        count = 0
-                        for word in words:
-                            result_word = Word(word)
-                            result_word = result_word.spellcheck()
-                            if len(result_word) == 1:
-                                count += 1
-
-                        if corrects < count:
-                            result_img = filtered_img
-                            corrects = count
-                            correctMask = mask
-                            adaptive_threshold_block_size_best = adaptive_threshold_block_size[i]
-                            adaptive_threshold_c_best = adaptive_threshold_c[j]
-
-                        print('count : ', count)
-
-        print_all(correctMask, corrects, file_name, adaptive_threshold_block_size_best, adaptive_threshold_c_best)
+        print_all(file_name, correctMask)
 
         # 이미지 저장
         cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', result_img)
