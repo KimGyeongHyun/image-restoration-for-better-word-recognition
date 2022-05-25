@@ -34,12 +34,22 @@ MASK1 = 0b00_0000_00_00_00_1
 USERNOISEMASK_1 = 0b00_0100_11_01_00_0
 
 ADAPTIVE_LERNING = 0b1
+USER_SAP_LERNING = 0b10
+MEDIAN_REP_LERANING = 0b100
 
 # 변수
 adaptive_threshold_block_size = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]
 adaptive_threshold_c = [-1, 0, 1, 2, 3, 4, 5]
 adaptive_threshold_block_size_best = 0
 adaptive_threshold_c_best = 0
+
+user_max = [0.5, 0.7, 0.9, 0.95]
+user_min = [0.4, 0.2, 0.1, 0.05]
+user_max_best = 0
+user_min_best = 0
+
+median_repeat_times = [1, 2, 3, 4, 5]
+median_repeat_time_best = 0
 
 path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
 save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
@@ -50,7 +60,7 @@ count = 0
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
-def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
+def image_filter(input_img, flag_value=0b00_0100_11_01_00_0, learning_mask=0):
     global corrects
     global corrects_best
     global count
@@ -60,6 +70,14 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
     global adaptive_threshold_block_size
     global adaptive_threshold_c
 
+    global user_max
+    global user_min
+    global user_max_best
+    global user_min_best
+
+    global median_repeat_times
+    global median_repeat_time_best
+
     return_img = input_img.copy()
 
     # flag_value 를 받아와서 13개의 bool 값을 변환해서 flag 에 대입하기
@@ -68,6 +86,11 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
         blurAdaptiveThresholdFlag = True
     else:
         blurAdaptiveThresholdFlag = False
+
+    if (flag_value & MASK13) == MASK13:
+        userEqualizationSAPFlag = True
+    else:
+        userEqualizationSAPFlag = False
 
     if (flag_value & MASK10) == MASK10:
         innerOpeningFlag = True
@@ -153,7 +176,7 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
     # 적당한 adaptive threshold를 가해서 바이너리 이미지를 얻어냄
     # 바이너리 속성에 의해 저주파가 뭉개지고 글씨가 선명하게 보임
     if blurAdaptiveThresholdFlag:
-        if ADAPTIVE_LERNING:
+        if (learning_mask & ADAPTIVE_LERNING) == ADAPTIVE_LERNING:
             for i in range(len(adaptive_threshold_block_size)):
                 for j in range(len(adaptive_threshold_c)):
                     #########
@@ -165,14 +188,14 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
 
                     adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
                     # split
-                    adap_words = adap_sentence.split()
+                    words = adap_sentence.split()
                     # lower case
-                    adap_words = [word.lower() for word in adap_words]
+                    words = [word.lower() for word in words]
                     # remove punctuations signs
-                    adap_words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in adap_words]
+                    words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
 
                     count = 0
-                    for word in adap_words:
+                    for word in words:
                         result_word = Word(word)
                         result_word = result_word.spellcheck()
                         if len(result_word) == 1:
@@ -186,8 +209,7 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
 
                     print('block_size : ', adaptive_threshold_block_size[i])
                     print('c : ', adaptive_threshold_c[j])
-                    print('count : ', count)
-
+                    print('count : ', count, '\r\n')
         else:
             return_img = adaptive_threshold_filter(return_img)
 
@@ -206,11 +228,80 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
 
     # if adaptiveFlag:
     #     return_img = adaptive_filtering(return_img, (7, 7), 180)
+    if userEqualizationSAPFlag:
+        if (learning_mask & USER_SAP_LERNING) == USER_SAP_LERNING:
+            for i in range(len(user_max)):
+                for j in range(len(user_min)):
+
+                    filtered_img = user_equalization(return_img, user_min[j], user_max[i])
+
+                    cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                    adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                    # split
+                    words = adap_sentence.split()
+                    # lower case
+                    words = [word.lower() for word in words]
+                    # remove punctuations signs
+                    words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                    count = 0
+                    for word in words:
+                        result_word = Word(word)
+                        result_word = result_word.spellcheck()
+                        if len(result_word) == 1:
+                            count += 1
+
+                    if corrects < count:
+                        return_img = filtered_img
+                        corrects = count
+                        user_max_best = user_max[i]
+                        user_min_best = user_min[j]
+
+                    print('user max prob : ', user_max[i])
+                    print('user min prob : ', user_min[j])
+                    print('count : ', count, '\r\n')
+        else:
+            return_img = user_equalization(return_img, 0.2, 0.8)
+
     if innerOpeningFlag:
         return_img = inner_opening_filter(return_img)
+
     if medianFlag:
-        for i in range(median_repeat_times):
-            return_img = median_filter(return_img)
+        if (learning_mask & MEDIAN_REP_LERANING) == MEDIAN_REP_LERANING:
+            for i in range(len(median_repeat_times)):
+
+                filtered_img = return_img.copy()
+                for j in range(median_repeat_times[i]):
+                    filtered_img = median_filter(filtered_img)
+
+                cv2.imwrite(save_dir + '\\' + file_name + '_filtered.jpg', filtered_img)
+
+                adap_sentence = pytesseract.image_to_string(save_dir + '\\' + file_name + '_filtered.jpg')
+                # split
+                words = adap_sentence.split()
+                # lower case
+                words = [word.lower() for word in words]
+                # remove punctuations signs
+                words = [re.sub(r'[^A-Za-z0-9]+', '', word) for word in words]
+
+                count = 0
+                for word in words:
+                    result_word = Word(word)
+                    result_word = result_word.spellcheck()
+                    if len(result_word) == 1:
+                        count += 1
+
+                if corrects < count:
+                    return_img = filtered_img
+                    corrects = count
+                    median_repeat_time_best = i
+
+                print('median repeat time : ', median_repeat_times[i])
+                print('count : ', count, '\r\n')
+        else:
+            for i in range(3):
+                return_img = median_filter(return_img)
 
     #####################################################################################################
     # 이후 노이즈 제거
@@ -273,6 +364,103 @@ def image_filter(input_img, flag_value=0b00_0100_11_01_00_0):
 
     if corrects_best < corrects:
         corrects_best = corrects
+
+    return return_img
+
+
+def adaptive_threshold_filter(input_img, block_size=11, c=2):
+
+    print("Adaptive threshold filtering...")
+    return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY, block_size, c)
+
+    return return_img
+
+
+def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
+    print("User equalization...")
+    h, w = input_img.shape
+    return_img = np.zeros((h, w))
+
+    pixel_count = np.zeros(256)
+    pixel_number = h * w
+    pixel_sum = 0
+    user_min_pixel_val = 0
+    user_max_pixel_val = 0
+
+    for i in range(h):
+        for j in range(w):
+            pixel_value = input_img[i, j]
+            pixel_count[pixel_value] += 1
+
+    for i in range(256):
+        pixel_sum += pixel_count[i]
+        if pixel_sum > (pixel_number * min_thresh_prob):
+            user_min_pixel_val = i
+            break
+
+    pixel_sum = 0
+    for i in range(256):
+        pixel_sum += pixel_count[i]
+        if pixel_sum > (pixel_number * max_thresh_prob):
+            user_max_pixel_val = i
+            break
+
+    if user_max_pixel_val == user_min_pixel_val:
+        return np.zeros((h, w))
+
+    print('user max pixel value: ', user_max_pixel_val)
+    print('user min pixel value: ', user_min_pixel_val)
+
+    min_value = 0
+    max_value = 255
+
+    for i in range(h):
+        for j in range(w):
+            temp_min = input_img[i, j] - user_min_pixel_val
+            if temp_min < 0:
+                temp_min = 0
+            return_img[i, j] = temp_min * ((max_value - min_value) / (user_max_pixel_val - user_min_pixel_val))
+            if return_img[i, j] > 255:
+                return_img[i, j] = 255
+
+    return return_img.astype(np.uint8)
+
+
+def inner_opening_filter(input_img):
+    print("Inner opening filter...")
+    kernel = np.ones((3, 3), np.uint8)
+    return_img = cv2.morphologyEx(input_img, cv2.MORPH_OPEN, kernel)
+
+    return return_img
+
+
+def median_filter(input_img, kernel_size=3):
+    print("median filter...")
+    return_img = input_img.copy()
+    m, n = input_img.shape
+    pad_size = kernel_size//2
+    padded_img = np.zeros((m + 2 * pad_size, n + 2 * pad_size))
+
+    for i in range(m):
+        for j in range(n):
+            padded_img[i + pad_size, j + pad_size] = input_img[i, j]
+
+    for i in range(m):  # 최대 m-1
+        for j in range(n):
+            partlist = np.zeros((kernel_size * kernel_size))
+            for x in range(kernel_size):    # 최대 kernel_size - 1
+                for y in range(kernel_size):
+                    partlist[x + y * kernel_size] = padded_img[i + x, j + y]    # 최대 m + kernel_size - 2
+            partlist.sort()
+            return_img[i, j] = partlist[(kernel_size * kernel_size) // 2]
+
+    return return_img
+
+
+def bilateral_filter(input_img):
+    print("BilateralFilter...")
+    return_img = cv2.bilateralFilter(input_img, -1, 10, 10)
 
     return return_img
 
@@ -364,6 +552,21 @@ def HF(input_img, cutoff=2, high=1.2, low=0.9, c=20):  # Homomorphic filter
     return idft2d
 
 
+def gamma_correction(input_img, c_param=3):
+    print("Gamma correction...")
+    normalized_img = input_img/255
+    h, w = input_img.shape
+    return_img = np.zeros((h, w))
+
+    for i in range(h):
+        for j in range(w):
+            return_img[i, j] = normalized_img[i, j] ** c_param
+
+    return_img = (return_img * 255).astype(np.uint8)
+
+    return return_img
+
+
 def morphology(input_img, method=0, k_size=3):
     """
     :param input_img: input_img image
@@ -431,119 +634,6 @@ def morphology(input_img, method=0, k_size=3):
     return morp_result
 
 
-def adaptive_threshold_filter(input_img, block_size=11, c=2):
-
-    print("Adaptive threshold filtering...")
-    return_img = cv2.adaptiveThreshold(input_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY, block_size, c)
-
-    return return_img
-
-
-def median_filter(input_img, kernel_size=3):
-    print("median filter...")
-    return_img = input_img.copy()
-    m, n = input_img.shape
-    pad_size = kernel_size//2
-    padded_img = np.zeros((m + 2 * pad_size, n + 2 * pad_size))
-
-    for i in range(m):
-        for j in range(n):
-            padded_img[i + pad_size, j + pad_size] = input_img[i, j]
-
-    for i in range(m):  # 최대 m-1
-        for j in range(n):
-            partlist = np.zeros((kernel_size * kernel_size))
-            for x in range(kernel_size):    # 최대 kernel_size - 1
-                for y in range(kernel_size):
-                    partlist[x + y * kernel_size] = padded_img[i + x, j + y]    # 최대 m + kernel_size - 2
-            partlist.sort()
-            return_img[i, j] = partlist[(kernel_size * kernel_size) // 2]
-
-    return return_img
-
-
-def bilateral_filter(input_img):
-    print("BilateralFilter...")
-    return_img = cv2.bilateralFilter(input_img, -1, 10, 10)
-
-    return return_img
-
-
-def gamma_correction(input_img, c_param=3):
-    print("Gamma correction...")
-    normalized_img = input_img/255
-    h, w = input_img.shape
-    return_img = np.zeros((h, w))
-
-    for i in range(h):
-        for j in range(w):
-            return_img[i, j] = normalized_img[i, j] ** c_param
-
-    return_img = (return_img * 255).astype(np.uint8)
-
-    return return_img
-
-
-def inner_opening_filter(input_img):
-    print("Inner opening filter...")
-    kernel = np.ones((3, 3), np.uint8)
-    return_img = cv2.morphologyEx(input_img, cv2.MORPH_OPEN, kernel)
-
-    return return_img
-
-
-def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
-    print("User equalization...")
-    h, w = input_img.shape
-    return_img = np.zeros((h, w))
-
-    pixel_count = np.zeros(256)
-    pixel_number = h * w
-    pixel_sum = 0
-    user_min = 0
-    user_max = 0
-
-    for i in range(h):
-        for j in range(w):
-            pixel_value = input_img[i, j]
-            pixel_count[pixel_value] += 1
-
-    for i in range(256):
-        pixel_sum += pixel_count[i]
-        if pixel_sum > (pixel_number * min_thresh_prob):
-            user_min = i
-            break
-
-    pixel_sum = 0
-    for i in range(256):
-        pixel_sum += pixel_count[i]
-        if pixel_sum > (pixel_number * max_thresh_prob):
-            user_max = i
-            break
-
-    if user_max == 0:
-        print("Error")
-        user_max = 1
-
-    print('user min : ', user_min)
-    print('user max : ', user_max)
-
-    min_value = 0
-    max_value = 255
-
-    for i in range(h):
-        for j in range(w):
-            temp_min = input_img[i, j] - user_min
-            if temp_min < 0:
-                temp_min = 0
-            return_img[i, j] = temp_min * ((max_value - min_value) / (user_max - user_min))
-            if return_img[i, j] > 255:
-                return_img[i, j] = 255
-
-    return return_img.astype(np.uint8)
-
-
 # 수정 필요
 def print_all(input_file_name, input_mask):
 
@@ -598,6 +688,13 @@ def print_all(input_file_name, input_mask):
         print('Adaptive best block size : ', adaptive_threshold_block_size_best)
         print('Adaptive best c : ', adaptive_threshold_c_best)
 
+    if user_min_best != 0:
+        print('User best max prob : ', user_max_best)
+        print('User best min prob : ', user_min_best)
+
+    if median_repeat_time_best != 0:
+        print('Median best repeat times : ', median_repeat_time_best)
+
     print("--------------------------------------------")
 
     return
@@ -619,12 +716,12 @@ if __name__ == "__main__":
         # masks = [MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10, MASK11, MASK12, MASK13, 0,
         #       USERNOISEMASK_1]
 
-        masks = [MASK12]
+        masks = [MASK8]
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', bin(mask))
 
-            result_img = image_filter(img, mask)
+            result_img = image_filter(img, mask, 0b100)
 
         print_all(file_name, correctMask)
 
