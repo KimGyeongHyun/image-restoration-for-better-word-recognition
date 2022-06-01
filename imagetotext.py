@@ -13,9 +13,9 @@ OPENING = 3
 CLOSING = 4
 
 # 필터 넘버링
-first_adaptive_threshold = 0
+adaptive_threshold = 0
 first_user_equalization = 1
-inner_opening = 2
+morphologyEx_opening = 2
 median = 3
 bilateral = 4
 homomorphic = 5
@@ -24,7 +24,7 @@ gamma_correction = 7
 binary = 8
 morphology = 9
 
-first_adaptive_threshold_learning = 0
+adaptive_threshold_learning = 0
 first_user_equalization_learning = 1
 median_learning = 3
 homomorphic_learning = 5
@@ -33,25 +33,26 @@ gamma_correction_learning = 7
 binary_learning = 8
 morphology_learning = 9
 
-MASK10 = 0b10_0000_0000
-MASK9 = 0b01_0000_0000
-MASK8 = 0b00_1000_0000
-MASK7 = 0b00_0100_0000
-MASK6 = 0b00_0010_0000
-MASK5 = 0b00_0001_0000
-MASK4 = 0b00_0000_1000
-MASK3 = 0b00_0000_0100
-MASK2 = 0b00_0000_0010
-MASK1 = 0b00_0000_0001
+# 마스킹
+ADAPTIVE_THRESHOLD = 0b00_0000_0001
+FIRST_USER_EQUALIZATION = 0b00_0000_0010
+MORPHOLOGYEX_OPENING = 0b00_0000_0100
+MEDIAN = 0b00_0000_1000
+BILATERAL = 0b00_0001_0000
+HOMOMORPHIC = 0b00_0010_0000
+SECOND_USER_EQUALIZATION = 0b00_0100_0000
+GAMMA_CORRECTION = 0b00_1000_0000
+BINARY = 0b01_0000_0000
+MORPHOLOGY = 0b10_0000_0000
 
-ADAPTIVE_LEARNING = 0b1  # 1
-USER_SAP_LEARNING = 0b10  # 2
-MEDIAN_REP_LEARNING = 0b1000  # 4
-HOMO_LEARNING = 0b10_0000  # 6
-USER_SECOND_LEARNING = 0b100_0000  # 7
-GAMMA_LEARNING = 0b1000_0000  # 8
-BINARY_LEARNING = 0b1_0000_0000  # 9
-MORPHOLOGY_LEARNING = 0b10_0000_0000  # 10
+ADAPTIVE_LEARNING = 0b00_0000_0001
+USER_SAP_LEARNING = 0b00_0000_0010
+MEDIAN_REP_LEARNING = 0b00_0000_1000
+HOMO_LEARNING = 0b00_0010_0000
+USER_SECOND_LEARNING = 0b00_0100_0000
+GAMMA_LEARNING = 0b00_1000_0000
+BINARY_LEARNING = 0b01_0000_0000
+MORPHOLOGY_LEARNING = 0b10_0000_0000
 
 # 필터별로 러닝할 변수
 adaptive_threshold_block_size = [5, 7, 9, 13, 17, 23, 29]
@@ -84,6 +85,7 @@ morphology_best_method = 0
 
 path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
 save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 count = 0           # 어법에 맞는 글자를 세는 변수
 corrects = 0        # 각 필터 러닝에서 가장 높은 count 를 저장.
 best_counts = 0     # 각 필터 마스크의 카운트 중 가장 높은 count 를 저장.
@@ -131,52 +133,52 @@ def image_filter(input_img, flag_value=0, input_learning_mask=0):
     #######################################################################################################
     # 사용하는 필터 정보를 flag_value로 받아와서 필터 사용 여부 결정
 
-    if (flag_value & MASK1) == MASK1:
+    if (flag_value & ADAPTIVE_THRESHOLD) == ADAPTIVE_THRESHOLD:
         blurAdaptiveThresholdFlag = True
     else:
         blurAdaptiveThresholdFlag = False
 
-    if (flag_value & MASK2) == MASK2:
+    if (flag_value & FIRST_USER_EQUALIZATION) == FIRST_USER_EQUALIZATION:
         userEqualizationSAPFlag = True
     else:
         userEqualizationSAPFlag = False
 
-    if (flag_value & MASK3) == MASK3:
+    if (flag_value & MORPHOLOGYEX_OPENING) == MORPHOLOGYEX_OPENING:
         innerOpeningFlag = True
     else:
         innerOpeningFlag = False
 
-    if (flag_value & MASK4) == MASK4:
+    if (flag_value & MEDIAN) == MEDIAN:
         medianFlag = True
     else:
         medianFlag = False
 
-    if (flag_value & MASK5) == MASK5:
+    if (flag_value & BILATERAL) == BILATERAL:
         bilateralFilterFlag = True
     else:
         bilateralFilterFlag = False
 
-    if (flag_value & MASK6) == MASK6:
+    if (flag_value & HOMOMORPHIC) == HOMOMORPHIC:
         homomorphicFlag = True
     else:
         homomorphicFlag = False
 
-    if (flag_value & MASK7) == MASK7:
+    if (flag_value & SECOND_USER_EQUALIZATION) == SECOND_USER_EQUALIZATION:
         userEqualizationSecondFlag = True
     else:
         userEqualizationSecondFlag = False
 
-    if (flag_value & MASK8) == MASK8:
+    if (flag_value & GAMMA_CORRECTION) == GAMMA_CORRECTION:
         gammaCorrectionFlag = True
     else:
         gammaCorrectionFlag = False
 
-    if (flag_value & MASK9) == MASK9:
+    if (flag_value & BINARY) == BINARY:
         binaryFlag = True
     else:
         binaryFlag = False
 
-    if (flag_value & MASK10) == MASK10:
+    if (flag_value & MORPHOLOGY) == MORPHOLOGY:
         morphologyFlag = True
     else:
         morphologyFlag = False
@@ -281,7 +283,7 @@ def image_filter(input_img, flag_value=0, input_learning_mask=0):
             return_img = user_equalization(return_img, 0.2, 0.8)
 
     if innerOpeningFlag:
-        return_img = inner_opening_filter(return_img)
+        return_img = morphologyEx_opening_filter(return_img)
 
     if medianFlag:
         if (input_learning_mask & MEDIAN_REP_LEARNING) == MEDIAN_REP_LEARNING:
@@ -608,7 +610,7 @@ def user_equalization(input_img, min_thresh_prob=0.03, max_thresh_prob=0.9):
 
 
 # morphologyEx opening filter
-def inner_opening_filter(input_img):
+def morphologyEx_opening_filter(input_img):
     print("Inner opening filter...")
     kernel = np.ones((3, 3), np.uint8)
     return_img = cv2.morphologyEx(input_img, cv2.MORPH_OPEN, kernel)
@@ -873,34 +875,34 @@ def print_all(input_file_name, input_mask, input_learning_mask, input_count):
     print('final mask : ', bin(input_mask))
     print("Used filters...")
 
-    if (input_mask & MASK1) == MASK1:
+    if (input_mask & ADAPTIVE_THRESHOLD) == ADAPTIVE_THRESHOLD:
         print("First adaptive threshold filter")
 
-    if (input_mask & MASK2) == MASK2:
+    if (input_mask & FIRST_USER_EQUALIZATION) == FIRST_USER_EQUALIZATION:
         print("First user equalization")
 
-    if (input_mask & MASK3) == MASK3:
+    if (input_mask & MORPHOLOGYEX_OPENING) == MORPHOLOGYEX_OPENING:
         print("Inner opening filter")
 
-    if (input_mask & MASK4) == MASK4:
+    if (input_mask & MEDIAN) == MEDIAN:
         print("Median filter")
 
-    if (input_mask & MASK5) == MASK5:
+    if (input_mask & BILATERAL) == BILATERAL:
         print("Bilateral filter")
 
-    if (input_mask & MASK6) == MASK6:
+    if (input_mask & HOMOMORPHIC) == HOMOMORPHIC:
         print("Homomorphic filter")
 
-    if (input_mask & MASK7) == MASK7:
+    if (input_mask & SECOND_USER_EQUALIZATION) == SECOND_USER_EQUALIZATION:
         print("Second user equalization")
 
-    if (input_mask & MASK8) == MASK8:
+    if (input_mask & GAMMA_CORRECTION) == GAMMA_CORRECTION:
         print("Gamma correction")
 
-    if (input_mask & MASK9) == MASK9:
+    if (input_mask & BINARY) == BINARY:
         print("Binary filter")
 
-    if (input_mask & MASK10) == MASK10:
+    if (input_mask & MORPHOLOGY) == MORPHOLOGY:
         print("Morphology filter")
 
     print('\r\nLearning filters...')
@@ -956,9 +958,9 @@ if __name__ == "__main__":
 
     """
     
-    first_adaptive_threshold = 0
+    adaptive_threshold = 0
     first_user_equalization = 1
-    inner_opening = 2
+    morphologyEx_opening = 2
     median = 3
     bilateral = 4
     homomorphic = 5
@@ -970,7 +972,6 @@ if __name__ == "__main__":
     """
 
     file_list = os.listdir(path_dir)
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
     result = open(save_dir + '\\final.txt', 'w', encoding='UTF-8')
 
     for file_name in file_list:
@@ -984,12 +985,12 @@ if __name__ == "__main__":
         learning_mask = 0
 
         # 그라데이션
-        GRAD1 = (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic) | (1 << second_user_equalization)
+        GRAD1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (1 << second_user_equalization)
         GRAD2 = (1 << homomorphic)
-        GRAD3 = (1 << first_adaptive_threshold)
+        GRAD3 = (1 << adaptive_threshold)
 
         # 가우시안 노이즈
-        GAUSSIAN1 = (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic) | (
+        GAUSSIAN1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
                 1 << second_user_equalization) | (1 << median)
         GAUSSIAN2 = (1 << homomorphic)
 
@@ -998,28 +999,34 @@ if __name__ == "__main__":
         SAP2 = (1 << first_user_equalization)
 
         # blur
-        BLUR1 = (1 << first_adaptive_threshold)
+        BLUR1 = (1 << adaptive_threshold)
         BLUR2 = (1 << homomorphic)
 
         # morphology
-        MORP1 = (1 << first_adaptive_threshold) | (1 << morphology)
+        MORP1 = (1 << adaptive_threshold) | (1 << morphology)
         MORP2 = (1 << binary) | (1 << morphology)
 
         # user masks
-        USER_MASK1 = (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic) | (
+        USER_MASK1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
                 1 << second_user_equalization) | (1 << median)
-        USER_MASK2 = (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic) | (
+        USER_MASK2 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
                 1 << second_user_equalization)
-        USER_MASK3 = (1 << first_adaptive_threshold) | (1 << inner_opening) | (1 << bilateral)
-        USER_MASK4 = (1 << first_adaptive_threshold) | (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic)
-        USER_MASK5 = (1 << first_adaptive_threshold) | (1 << inner_opening) | (1 << bilateral) | (1 << homomorphic) | (
+        USER_MASK3 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral)
+        USER_MASK4 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic)
+        USER_MASK5 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
                 1 << second_user_equalization)
         USER_MASK6 = (1 << homomorphic) | (1 << gamma_correction)
 
-        masks = [0, MASK1, MASK2, MASK3, MASK4, MASK5, MASK6, MASK7, MASK8, MASK9, MASK10,
-            BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
-        learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
-                    1 << homomorphic_learning) | (1 << morphology_learning)
+        # 사용예시
+        # 사용하고자 할 필터를 직접 유저 마스크로 제작하거나, 위에 있는 가이드라인 마스크를 집어넣어서 사용
+        # masks = [0, ADAPTIVE_THRESHOLD, FIRST_USER_EQUALIZATION, MORPHOLOGYEX_OPENING, MEDIAN, BILATERAL, HOMOMORPHIC,
+        #       SECOND_USER_EQUALIZATION, GAMMA_CORRECTION, BINARY, MORPHOLOGY,
+        #     BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
+        # learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
+        #             1 << homomorphic_learning) | (1 << morphology_learning)
+
+        masks = [0, GAUSSIAN2, BLUR1]
+        learning_mask = (1 << homomorphic_learning) | (1 << adaptive_threshold)
 
         best_counts = 0
         best_mask = 0
