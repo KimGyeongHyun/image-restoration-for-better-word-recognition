@@ -86,14 +86,13 @@ morphology_best_method = 0
 path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
 save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-count = 0           # 어법에 맞는 글자를 세는 변수
-corrects = 0        # 각 필터 러닝에서 가장 높은 count 를 저장.
-best_counts = 0     # 각 필터 마스크의 카운트 중 가장 높은 count 를 저장.
+count = 0  # 어법에 맞는 글자를 세는 변수
+corrects = 0  # 각 필터 러닝에서 가장 높은 count 를 저장.
+best_counts = 0  # 각 필터 마스크의 카운트 중 가장 높은 count 를 저장.
 
 
 # 최종 이미지 필터 /   필터링된 이미지 반환
 def image_filter(input_img, flag_value=0, input_learning_mask=0):
-
     # flag_value : 필터 종류를 마스킹한 변수
     # input_learning_mask : 러닝할 필터 종류를 마스킹한 변수
 
@@ -864,7 +863,6 @@ def morphology_learning_function(input_img, case):
 
 # 모든 정보를 출력하는 함수
 def print_all(input_file_name, input_mask, input_learning_mask, input_count):
-
     used_learning_mask = input_mask & input_learning_mask
 
     print("--------------------------------------------")
@@ -1020,13 +1018,19 @@ if __name__ == "__main__":
         # 사용예시
         # 사용하고자 할 필터를 직접 유저 마스크로 제작하거나, 위에 있는 가이드라인 마스크를 집어넣어서 사용
         # masks = [0, ADAPTIVE_THRESHOLD, FIRST_USER_EQUALIZATION, MORPHOLOGYEX_OPENING, MEDIAN, BILATERAL, HOMOMORPHIC,
-        #       SECOND_USER_EQUALIZATION, GAMMA_CORRECTION, BINARY, MORPHOLOGY,
-        #     BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
+        #          SECOND_USER_EQUALIZATION, GAMMA_CORRECTION, BINARY, MORPHOLOGY,
+        #          BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
         # learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
-        #             1 << homomorphic_learning) | (1 << morphology_learning)
+        #         1 << homomorphic_learning) | (1 << morphology_learning)
 
-        masks = [0, GAUSSIAN2, BLUR1]
-        learning_mask = (1 << homomorphic_learning) | (1 << adaptive_threshold)
+        # 구현된 필터
+        # 1) 0 : 필터 X
+        # 2) GAUSSIAN2 : homomorphic
+        # 3) BLUR1 : adaptive_threshold
+        # 위의 3개의 필터중 spelling 이 맞는 글자가 많은 필터가 채택되고 구현됨
+        # 러닝 필터 : homomorphic, adaptive_threshold
+        masks = [0, BLUR1, GAUSSIAN2]
+        learning_mask = (1 << adaptive_threshold_learning)
 
         best_counts = 0
         best_mask = 0
@@ -1078,7 +1082,6 @@ if __name__ == "__main__":
 
     result.close()
     print("complete")
-
 
 """
 
