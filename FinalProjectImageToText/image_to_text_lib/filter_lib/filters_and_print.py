@@ -1,4 +1,3 @@
-import pytesseract
 import numpy as np
 import cv2
 from textblob import Word
@@ -6,44 +5,52 @@ import re
 
 from ..filter_lib import *
 
+adaptive_threshold_block_size_best_first = 0
+adaptive_threshold_c_best_first = 0
+
+user_max_best_first = 0
+user_min_best_first = 0
+user_max_best_second = 0
+user_min_best_second = 0
+
+median_repeat_time_best = 0
+
+homo_cutoff_best = 0
+homo_c_best = 0
+
+gamma_best_param = 0
+
+binary_best_standard = 0
+
+morphology_best_method = 0
+
+
 # 최종 이미지 필터 /   필터링된 이미지 반환
 def image_filter(file_name, input_img, flag_value=0, input_learning_mask=0):
     # flag_value : 필터 종류를 마스킹한 변수
     # input_learning_mask : 러닝할 필터 종류를 마스킹한 변수
 
-    global corrects
-    global count
+    return_img = input_img.copy()
+    temp_return_img = input_img.copy()
 
-    global adaptive_threshold_block_size
-    global adaptive_threshold_c
     global adaptive_threshold_block_size_best_first
     global adaptive_threshold_c_best_first
 
-    global user_max
-    global user_min
     global user_max_best_first
     global user_min_best_first
     global user_max_best_second
     global user_min_best_second
 
-    global median_repeat_times
     global median_repeat_time_best
 
-    global homo_cutoffs
-    global homo_c
     global homo_cutoff_best
     global homo_c_best
 
-    global gamma_param
     global gamma_best_param
 
-    global binary_standard
     global binary_best_standard
 
     global morphology_best_method
-
-    return_img = input_img.copy()
-    temp_return_img = input_img.copy()
 
     #######################################################################################################
     # 사용하는 필터 정보를 flag_value로 받아와서 필터 사용 여부 결정
@@ -864,5 +871,3 @@ def print_all(input_file_name, input_mask, input_learning_mask, input_count):
             print('Closing and opening')
 
     print("--------------------------------------------")
-
-    return
