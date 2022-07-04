@@ -18,8 +18,10 @@ def get_input_source_and_return():
 
     input_number_list = []
     print('사용하고 싶은 필터를 숫자로 하나씩 입력하세요.\n'
-          '다 입력했다면 -1 을 입력하세요\n\n')
+          '필터 마스크를 추가하려면 -1 을 입력하세요\n'
+          '다 입력했다면 -2 을 입력하세요(-1로 모두 저장 후 입력하세요.)\n\n')
 
+    masks = []
     while True:
         print('---필터 종류---\n'
               'adaptive_threshold = 0\n'
@@ -43,11 +45,25 @@ def get_input_source_and_return():
             print('\n')
             continue
 
-        if input_number not in [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]:
+        if input_number not in [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]:
+            continue
+
+        # 필터 추가
+        if input_number == -1:
+            mask = 0
+            for numbers in input_number_list:
+                mask |= (1 << numbers)
+            masks.append(mask)
+
+            print('필터 마스크 리스트 : ')
+            for mask in masks:
+                print('{}'.format(bin(mask)))
+            print('새로운 필터 마스크를 만드세요\n\n')
+            input_number_list = []
             continue
 
         # 필터 입력 중단
-        if input_number == -1:
+        if input_number == -2:
             break
 
         if input_number in input_number_list:
@@ -64,10 +80,18 @@ def get_input_source_and_return():
         print('\n')
 
     print('필터 입력이 끝났습니다.')
-    print('필터 리스트 : ')
-    for numbers in input_number_list:
-        print('{}'.format(filter_dic[numbers]))
+    print('필터 마스크 리스트 : ')
+    for mask in masks:
+        print('{}'.format(bin(mask)))
     print('\n')
+
+
+
+
+
+
+
+
 
     # 러닝 필터
     learning_input_number_list = []
@@ -123,16 +147,20 @@ def get_input_source_and_return():
     print('필터 입력이 끝났습니다.\n'
           '--------------------------------\n\n')
 
-    print('필터 리스트 : ')
-    for numbers in input_number_list:
-        print('{}'.format(filter_dic[numbers]))
+    learning_mask = 0
+    for number in learning_input_number_list:
+        learning_mask |= (1 << number)
+
+    print('필터 마스크 리스트 : ')
+    for mask in masks:
+        print('{}'.format(bin(mask)))
     print('\n')
     print('러닝 필터 리스트 : ')
     for numbers in learning_input_number_list:
         print('{}'.format(filter_dic[numbers]))
     print('\n')
 
-    print('헛짓거리 ㅅㄱ')
+    return masks, learning_mask
 
 
 if __name__ == '__main__':

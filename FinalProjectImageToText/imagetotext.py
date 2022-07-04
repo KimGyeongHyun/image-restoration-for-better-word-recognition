@@ -971,6 +971,62 @@ if __name__ == "__main__":
     
     """
 
+    # default
+    masks = [0]
+    learning_mask = 0
+
+    # 그라데이션
+    GRAD1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (1 << second_user_equalization)
+    GRAD2 = (1 << homomorphic)
+    GRAD3 = (1 << adaptive_threshold)
+
+    # 가우시안 노이즈
+    GAUSSIAN1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
+            1 << second_user_equalization) | (1 << median)
+    GAUSSIAN2 = (1 << homomorphic)
+
+    # Salt and pepper 노이즈
+    SAP1 = (1 << median)
+    SAP2 = (1 << first_user_equalization)
+
+    # blur
+    BLUR1 = (1 << adaptive_threshold)
+    BLUR2 = (1 << homomorphic)
+
+    # morphology
+    MORP1 = (1 << adaptive_threshold) | (1 << morphology)
+    MORP2 = (1 << binary) | (1 << morphology)
+
+    # user masks
+    USER_MASK1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
+            1 << second_user_equalization) | (1 << median)
+    USER_MASK2 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
+            1 << second_user_equalization)
+    USER_MASK3 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral)
+    USER_MASK4 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic)
+    USER_MASK5 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
+            1 << second_user_equalization)
+    USER_MASK6 = (1 << homomorphic) | (1 << gamma_correction)
+
+    # 사용예시
+    # 사용하고자 할 필터를 직접 유저 마스크로 제작하거나, 위에 있는 가이드라인 마스크를 집어넣어서 사용
+    # masks = [0, ADAPTIVE_THRESHOLD, FIRST_USER_EQUALIZATION, MORPHOLOGYEX_OPENING, MEDIAN, BILATERAL, HOMOMORPHIC,
+    #          SECOND_USER_EQUALIZATION, GAMMA_CORRECTION, BINARY, MORPHOLOGY,
+    #          BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
+    # learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
+    #         1 << homomorphic_learning) | (1 << morphology_learning)
+
+    # 구현된 필터
+    # 1) 0 : 필터 X
+    # 2) GAUSSIAN2 : homomorphic
+    # 3) BLUR1 : adaptive_threshold
+    # 위의 3개의 필터중 spelling 이 맞는 글자가 많은 필터가 채택되고 구현됨
+    # 러닝 필터 : homomorphic, adaptive_threshold
+    masks = [0, BLUR1, GAUSSIAN2]
+    learning_mask = (1 << adaptive_threshold_learning)
+
+    masks, learning_mask = image_to_text_lib.get_input_source_and_return()
+
     file_list = os.listdir(path_dir)
     result = open(save_dir + '\\final.txt', 'w', encoding='UTF-8')
 
@@ -980,64 +1036,12 @@ if __name__ == "__main__":
 
         result_img = img.copy()
 
-        # default
-        masks = [0]
-        learning_mask = 0
 
-        # 그라데이션
-        GRAD1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (1 << second_user_equalization)
-        GRAD2 = (1 << homomorphic)
-        GRAD3 = (1 << adaptive_threshold)
-
-        # 가우시안 노이즈
-        GAUSSIAN1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
-                1 << second_user_equalization) | (1 << median)
-        GAUSSIAN2 = (1 << homomorphic)
-
-        # Salt and pepper 노이즈
-        SAP1 = (1 << median)
-        SAP2 = (1 << first_user_equalization)
-
-        # blur
-        BLUR1 = (1 << adaptive_threshold)
-        BLUR2 = (1 << homomorphic)
-
-        # morphology
-        MORP1 = (1 << adaptive_threshold) | (1 << morphology)
-        MORP2 = (1 << binary) | (1 << morphology)
-
-        # user masks
-        USER_MASK1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
-                1 << second_user_equalization) | (1 << median)
-        USER_MASK2 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
-                1 << second_user_equalization)
-        USER_MASK3 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral)
-        USER_MASK4 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic)
-        USER_MASK5 = (1 << adaptive_threshold) | (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (
-                1 << second_user_equalization)
-        USER_MASK6 = (1 << homomorphic) | (1 << gamma_correction)
-
-        # 사용예시
-        # 사용하고자 할 필터를 직접 유저 마스크로 제작하거나, 위에 있는 가이드라인 마스크를 집어넣어서 사용
-        # masks = [0, ADAPTIVE_THRESHOLD, FIRST_USER_EQUALIZATION, MORPHOLOGYEX_OPENING, MEDIAN, BILATERAL, HOMOMORPHIC,
-        #          SECOND_USER_EQUALIZATION, GAMMA_CORRECTION, BINARY, MORPHOLOGY,
-        #          BLUR1, BLUR2, USER_MASK1, USER_MASK2, USER_MASK3, USER_MASK4, USER_MASK5, USER_MASK6]
-        # learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
-        #         1 << homomorphic_learning) | (1 << morphology_learning)
-
-        # 구현된 필터
-        # 1) 0 : 필터 X
-        # 2) GAUSSIAN2 : homomorphic
-        # 3) BLUR1 : adaptive_threshold
-        # 위의 3개의 필터중 spelling 이 맞는 글자가 많은 필터가 채택되고 구현됨
-        # 러닝 필터 : homomorphic, adaptive_threshold
-        masks = [0, BLUR1, GAUSSIAN2]
-        learning_mask = (1 << adaptive_threshold_learning)
 
         best_counts = 0
         best_mask = 0
 
-        image_to_text_lib.get_input_source_and_return()
+
 
 
 
