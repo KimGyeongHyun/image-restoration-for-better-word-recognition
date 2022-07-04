@@ -130,6 +130,7 @@ def image_filter(input_img, flag_value=0, input_learning_mask=0):
     global morphology_best_method
 
     return_img = input_img.copy()
+    temp_return_img = input_img.copy()
 
     #######################################################################################################
     # 사용하는 필터 정보를 flag_value로 받아와서 필터 사용 여부 결정
@@ -971,10 +972,6 @@ if __name__ == "__main__":
     
     """
 
-    # default
-    masks = [0]
-    learning_mask = 0
-
     # 그라데이션
     GRAD1 = (1 << morphologyEx_opening) | (1 << bilateral) | (1 << homomorphic) | (1 << second_user_equalization)
     GRAD2 = (1 << homomorphic)
@@ -1016,14 +1013,18 @@ if __name__ == "__main__":
     # learning_mask = (1 << first_user_equalization_learning) | (1 << first_user_equalization_learning) | (
     #         1 << homomorphic_learning) | (1 << morphology_learning)
 
+    # default
+    # masks = [0]
+    # learning_mask = 0
+
     # 구현된 필터
     # 1) 0 : 필터 X
     # 2) GAUSSIAN2 : homomorphic
     # 3) BLUR1 : adaptive_threshold
     # 위의 3개의 필터중 spelling 이 맞는 글자가 많은 필터가 채택되고 구현됨
     # 러닝 필터 : homomorphic, adaptive_threshold
-    masks = [0, BLUR1, GAUSSIAN2]
-    learning_mask = (1 << adaptive_threshold_learning)
+    # masks = [0, BLUR1, GAUSSIAN2]
+    # learning_mask = (1 << adaptive_threshold_learning)
 
     masks, learning_mask = image_to_text_lib.get_input_source_and_return()
 
@@ -1036,14 +1037,8 @@ if __name__ == "__main__":
 
         result_img = img.copy()
 
-
-
         best_counts = 0
         best_mask = 0
-
-
-
-
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', bin(mask))
