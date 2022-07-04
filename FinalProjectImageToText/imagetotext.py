@@ -5,6 +5,8 @@ import os
 from textblob import Word
 import re
 
+import image_to_text_lib
+
 # define
 NONE = 0
 EROSION = 1
@@ -650,7 +652,7 @@ def bilateral_filter(input_img):
 
 
 # homomorphic filter    /   default value cutoff = 2, c parameter = 30
-def HF(input_img, cutoff=2, c=30, high=1.2, low=0.9):  # Homomorphic filter
+def HF(input_img, cutoff=1, c=30, high=1.2, low=0.9):  # Homomorphic filter
     print("Homomorphic filter...")
     print('cutoff : ', cutoff)
     print('c : ', c)
@@ -1034,6 +1036,10 @@ if __name__ == "__main__":
 
         best_counts = 0
         best_mask = 0
+
+        image_to_text_lib.get_input_source_and_return()
+
+
 
         for mask in masks:  # 마스크(일련의 필터), 여러번 돌아감
             print('mask : ', bin(mask))
