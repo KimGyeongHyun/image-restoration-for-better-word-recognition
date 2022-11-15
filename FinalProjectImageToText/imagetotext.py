@@ -7,8 +7,8 @@ import re
 import image_to_text_lib
 from image_to_text_lib.filter_lib.filters_and_print import image_filter, print_all
 
-path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
-save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
+path_dir = '..\\scan_folder'
+save_dir = '..\\filtered_image_save'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 필터 넘버링

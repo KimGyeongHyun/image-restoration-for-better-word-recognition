@@ -1,0 +1,6 @@
+Apple, Banana, Car, Dog,
+
+Elephant, Flower, Grape, Hand,
+
+Iron, Jam, Kite, Lion, Moon
+

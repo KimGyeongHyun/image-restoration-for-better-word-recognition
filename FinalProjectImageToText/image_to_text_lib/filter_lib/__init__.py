@@ -44,6 +44,6 @@ gamma_param = [1, 2, 3, 4, 5]
 
 binary_standard = [90, 120, 150, 170, 190, 220]
 
-path_dir = 'C:\\Users\\poor1\\Desktop\\scan_folder'
-save_dir = 'C:\\Users\\poor1\\Desktop\\filtered_image_save'
+path_dir = '..\\scan_folder'
+save_dir = '..\\filtered_image_save'
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
